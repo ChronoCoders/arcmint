@@ -1,7 +1,7 @@
 use crate::error::{ArcMintError, Result};
 use rcgen::{
     BasicConstraints, Certificate, CertificateParams, DistinguishedName, DnType,
-    ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
+    ExtendedKeyUsagePurpose, IsCa, KeyIdMethod, KeyPair, KeyUsagePurpose,
 };
 use rustls::client::ClientConfig;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -27,8 +27,9 @@ fn rcgen_to_bundle(cert: &Certificate, key_pair: &KeyPair) -> Result<CertBundle>
 }
 
 fn parse_ca_bundle(ca_cert_pem: &str, ca_key_pem: &str) -> Result<(Certificate, KeyPair)> {
-    let params = CertificateParams::from_ca_cert_pem(ca_cert_pem)
+    let mut params = CertificateParams::from_ca_cert_pem(ca_cert_pem)
         .map_err(|e| ArcMintError::CryptoError(format!("invalid CA cert PEM: {e}")))?;
+    params.key_identifier_method = KeyIdMethod::Sha256;
     let key = KeyPair::from_pem(ca_key_pem)
         .map_err(|e| ArcMintError::CryptoError(format!("invalid CA key PEM: {e}")))?;
     let cert = params
@@ -38,8 +39,10 @@ fn parse_ca_bundle(ca_cert_pem: &str, ca_key_pem: &str) -> Result<(Certificate, 
 }
 
 pub fn generate_ca(common_name: &str) -> Result<CertBundle> {
+    println!("Generating CA certificate for {}", common_name);
     let mut params = CertificateParams::new(vec![common_name.to_string()])
         .map_err(|e| ArcMintError::CryptoError(format!("CA params generation failed: {e}")))?;
+    params.key_identifier_method = KeyIdMethod::Sha256;
     let mut dn = DistinguishedName::new();
     dn.push(DnType::CommonName, common_name);
     params.distinguished_name = dn;
@@ -77,6 +80,7 @@ pub fn generate_server_cert(
     }
     let mut params = CertificateParams::new(all_names)
         .map_err(|e| ArcMintError::CryptoError(format!("server params generation failed: {e}")))?;
+    params.key_identifier_method = KeyIdMethod::Sha256;
     let mut dn = DistinguishedName::new();
     dn.push(DnType::CommonName, common_name);
     params.distinguished_name = dn;
@@ -98,8 +102,10 @@ pub fn generate_client_cert(
     ca_cert_pem: &str,
     ca_key_pem: &str,
 ) -> Result<CertBundle> {
+    println!("Generating client certificate for {}", common_name);
     let mut params = CertificateParams::new(vec![common_name.to_string()])
         .map_err(|e| ArcMintError::CryptoError(format!("client params generation failed: {e}")))?;
+    params.key_identifier_method = KeyIdMethod::Sha256;
     let mut dn = DistinguishedName::new();
     dn.push(DnType::CommonName, common_name);
     params.distinguished_name = dn;

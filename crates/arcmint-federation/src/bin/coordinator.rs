@@ -212,6 +212,10 @@ struct MintInPollResponse {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     tracing_subscriber::fmt().init();
 
     let port: u16 = env::var("COORDINATOR_PORT")
@@ -342,7 +346,7 @@ async fn main() {
     .expect("failed to build coordinator mTLS client config for signers");
 
     let signer_client = Client::builder()
-        .use_preconfigured_tls(Arc::new(signer_tls_config))
+        .use_preconfigured_tls(signer_tls_config)
         .build()
         .expect("failed to build mTLS HTTP client for signers");
 
@@ -373,6 +377,10 @@ async fn main() {
     let last_settle_index = Arc::new(Mutex::new(initial_settle_index));
 
     let anchor_tracker = AnchorTracker::new(pool.clone());
+    anchor_tracker
+        .init_table()
+        .await
+        .expect("failed to init anchor table");
 
     if let Some(rpc) = bitcoin_rpc_client.clone() {
         let tracker = anchor_tracker.clone();
@@ -481,10 +489,6 @@ async fn main() {
             post(mint_out_begin).route_layer(gateway_auth_layer.clone()),
         )
         .route("/metrics", get(metrics_handler))
-        .route(
-            "/mint/out/begin",
-            post(mint_out_begin).route_layer(gateway_auth_layer),
-        )
         .route(
             "/anchors",
             get(anchors).route_layer(operator_auth_layer.clone()),

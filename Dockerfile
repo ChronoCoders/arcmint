@@ -11,7 +11,7 @@ COPY crates crates
 COPY tests tests
 RUN cargo build --release --workspace
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl && \
@@ -27,8 +27,6 @@ COPY --from=build /app/target/release/arcmint-wallet /usr/local/bin/arcmint-wall
 COPY --from=build /app/target/release/arcmint-adversary /usr/local/bin/arcmint-adversary
 COPY --from=build /app/target/release/arcmint-loadtest /usr/local/bin/arcmint-loadtest
 COPY --from=build /app/target/release/keygen /usr/local/bin/keygen
-COPY --from=build /app/target/release/certgen /usr/local/bin/certgen
-COPY --from=build /app/target/release/certgen /usr/local/bin/certgen
 COPY --from=build /app/target/release/certgen /usr/local/bin/certgen
 COPY --from=build /app/target/release/dkg_coordinator /usr/local/bin/dkg_coordinator
 COPY --from=build /app/target/release/dkg_participant /usr/local/bin/dkg_participant

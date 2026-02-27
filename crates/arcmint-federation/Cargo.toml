@@ -29,7 +29,8 @@ hyper-util = { workspace = true }
  reqwest = { workspace = true }
  hmac = { workspace = true }
  futures = { workspace = true }
- tokio-rustls = { workspace = true }
+rustls = { workspace = true }
+tokio-rustls = { workspace = true }
  x509-parser = { workspace = true }
 tower = { workspace = true }
 arcmint-core = { path = "../arcmint-core" }

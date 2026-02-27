@@ -20,6 +20,7 @@ services:
          certgen server --output-dir /certs --common-name signer-3 --san-dns signer-3 --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
          certgen server --output-dir /certs --common-name coordinator --san-dns coordinator --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
          certgen server --output-dir /certs --common-name gateway --san-dns gateway --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
+         certgen server --output-dir /certs --common-name lnd --san-dns lnd --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
          certgen client --output-dir /certs --common-name arcmint-coordinator --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
          certgen client --output-dir /certs --common-name arcmint-gateway --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem",
       ]
@@ -150,7 +151,7 @@ services:
       OPERATOR_SECRET: ${OPERATOR_SECRET:-dev-operator-secret}
       LND_HOST: lnd
       LND_PORT: "10009"
-      LND_TLS_CERT: /root/.lnd/tls.cert
+      LND_TLS_CERT: /certs/ca_cert.pem
       LND_MACAROON: /root/.lnd/data/chain/bitcoin/regtest/admin.macaroon
       # New Anchor variables
       BITCOIN_NETWORK: regtest
@@ -163,7 +164,11 @@ services:
       ANCHOR_FEE_TARGET_BLOCKS: ${ANCHOR_FEE_TARGET_BLOCKS:-3}
       ANCHOR_INTERVAL_BLOCKS: ${ANCHOR_INTERVAL_BLOCKS:-6}
       ANCHOR_MIN_CONFIRMATIONS: ${ANCHOR_MIN_CONFIRMATIONS:-1}
+      COORDINATOR_DB: /data/coordinator.db?mode=rwc
+      RUST_BACKTRACE: 1
+      RUST_LOG: debug
     volumes:
+      - coordinator-data:/data
       - frost-keys:/keys:ro
       - tls-certs:/certs:ro
       - lnd-data:/root/.lnd:ro
@@ -176,9 +181,9 @@ services:
       - "${COORDINATOR_PORT:-7000}:7000"
       - "9004:7000"
     healthcheck:
-      test: ["CMD", "curl", "--cacert", "/certs/ca_cert.pem", "-f", "https://localhost:7000/health"]
-      interval: 5s
-      timeout: 3s
+      test: ["CMD", "curl", "-k", "--cert", "/certs/arcmint-coordinator_cert.pem", "--key", "/certs/arcmint-coordinator_key.pem", "https://localhost:7000/health"]
+      interval: 10s
+      timeout: 5s
       retries: 10
 
   dkg-coordinator:
@@ -257,7 +262,7 @@ services:
       - "${MERCHANT_PORT:-7003}:7003"
       - "9006:7003"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7003/health"]
+      test: ["CMD", "curl", "--cacert", "/certs/ca_cert.pem", "-f", "https://localhost:7003/health"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -326,9 +331,12 @@ services:
     depends_on:
       bitcoind:
         condition: service_healthy
+      certgen:
+        condition: service_completed_successfully
     volumes:
       - lnd-data:/root/.lnd
       - lnd-init:/lnd-init
+      - tls-certs:/certs:ro
     environment:
       - BITCOIN_NETWORK=regtest
     command: >
@@ -344,8 +352,10 @@ services:
       --restlisten=0.0.0.0:8080
       --noseedbackup
       --debuglevel=info
+      --tlscertpath=/certs/lnd_cert.pem
+      --tlskeypath=/certs/lnd_key.pem
     healthcheck:
-      test: ["CMD", "lncli", "--network=regtest", "getinfo"]
+      test: ["CMD", "lncli", "--network=regtest", "--rpcserver=lnd:10009", "--tlscertpath=/certs/ca_cert.pem", "getinfo"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -361,6 +371,7 @@ services:
     volumes:
       - lnd-data:/root/.lnd
       - lnd-init:/lnd-init
+      - tls-certs:/certs:ro
     entrypoint:
       - /bin/sh
       - -c
@@ -368,7 +379,7 @@ services:
         set -e
         # Wait for lnd to be ready (although depends_on helps)
         sleep 5
-        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/root/.lnd/tls.cert --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon newaddress p2wkh > /lnd-init/address.txt
+        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon newaddress p2wkh > /lnd-init/address.txt
         ADDR=$$(grep "address" /lnd-init/address.txt | cut -d'"' -f4)
         echo "Mining to address: $$ADDR"
         # Use curl because bitcoin-cli is not available in lnd image
@@ -467,3 +478,4 @@ volumes:
   prometheus-data:
   grafana-data:
   loadtest-output:
+  coordinator-data:
