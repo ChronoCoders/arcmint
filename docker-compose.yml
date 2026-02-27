@@ -321,7 +321,7 @@ services:
       - "18443:18443"
 
   lnd:
-    image: lightningnetwork/lnd:v0.17.4-beta
+    image: lightninglabs/lnd:v0.17.4-beta
     restart: unless-stopped
     depends_on:
       bitcoind:
@@ -344,7 +344,6 @@ services:
       --restlisten=0.0.0.0:8080
       --noseedbackup
       --debuglevel=info
-      --allow-self-payment
     healthcheck:
       test: ["CMD", "lncli", "--network=regtest", "getinfo"]
       interval: 10s
@@ -354,7 +353,7 @@ services:
       - "8080:8080"
 
   lnd-init:
-    image: lightningnetwork/lnd:v0.17.4-beta
+    image: lightninglabs/lnd:v0.17.4-beta
     restart: "no"
     depends_on:
       lnd:
@@ -379,12 +378,18 @@ services:
     depends_on:
       lnd-init:
         condition: service_completed_successfully
-    entrypoint: /bin/sh -c |
-      ADDR=$(bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass getnewaddress)
-      while true; do
-        bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 1 $ADDR
-        sleep 10
-      done
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        # Wait for bitcoind to be ready (although depends_on helps, explicit wait is safer)
+        sleep 5
+        ADDR=$(bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass getnewaddress)
+        while true; do
+          bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 1 $ADDR
+          sleep 10
+        done
 
   prometheus:
     profiles: ["monitoring"]
