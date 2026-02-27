@@ -368,10 +368,10 @@ services:
       - |
         set -e
         lncli --network=regtest newaddress p2wkh > /lnd-init/address.txt
-      ADDR=$(cat /lnd-init/address.txt | grep address | cut -d'"' -f4)
-      bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 101 $ADDR
-      sleep 3
-      echo "LND init complete"
+        ADDR=$(cat /lnd-init/address.txt | grep address | cut -d'"' -f4)
+        bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 101 $ADDR
+        sleep 3
+        echo "LND init complete"
 
   miner:
     image: lncm/bitcoind:v26.0
