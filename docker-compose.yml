@@ -366,9 +366,13 @@ services:
       - -c
       - |
         set -e
+        # Wait for lnd to be ready (although depends_on helps)
+        sleep 5
         lncli --network=regtest newaddress p2wkh > /lnd-init/address.txt
-        ADDR=$(cat /lnd-init/address.txt | grep address | cut -d'"' -f4)
-        bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 101 $ADDR
+        ADDR=$(grep "address" /lnd-init/address.txt | cut -d'"' -f4)
+        echo "Mining to address: $ADDR"
+        # Use curl because bitcoin-cli is not available in lnd image
+        curl --user arcmint:arcmintpass --data-binary "{\"jsonrpc\": \"1.0\", \"id\": \"curltest\", \"method\": \"generatetoaddress\", \"params\": [101, \"$ADDR\"]}" -H 'content-type: text/plain;' http://bitcoind:18443/
         sleep 3
         echo "LND init complete"
 
