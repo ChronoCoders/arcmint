@@ -369,10 +369,10 @@ services:
         # Wait for lnd to be ready (although depends_on helps)
         sleep 5
         lncli --network=regtest newaddress p2wkh > /lnd-init/address.txt
-        ADDR=$(grep "address" /lnd-init/address.txt | cut -d'"' -f4)
-        echo "Mining to address: $ADDR"
+        ADDR=$$(grep "address" /lnd-init/address.txt | cut -d'"' -f4)
+        echo "Mining to address: $$ADDR"
         # Use curl because bitcoin-cli is not available in lnd image
-        curl --user arcmint:arcmintpass --data-binary "{\"jsonrpc\": \"1.0\", \"id\": \"curltest\", \"method\": \"generatetoaddress\", \"params\": [101, \"$ADDR\"]}" -H 'content-type: text/plain;' http://bitcoind:18443/
+        curl --user arcmint:arcmintpass --data-binary "{\"jsonrpc\": \"1.0\", \"id\": \"curltest\", \"method\": \"generatetoaddress\", \"params\": [101, \"$$ADDR\"]}" -H 'content-type: text/plain;' http://bitcoind:18443/
         sleep 3
         echo "LND init complete"
 
@@ -389,9 +389,9 @@ services:
         set -e
         # Wait for bitcoind to be ready (although depends_on helps, explicit wait is safer)
         sleep 5
-        ADDR=$(bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass getnewaddress)
+        ADDR=$$(bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass getnewaddress)
         while true; do
-          bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 1 $ADDR
+          bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 1 $$ADDR
           sleep 10
         done
 
