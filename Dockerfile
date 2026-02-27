@@ -8,7 +8,7 @@ WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
 COPY crates crates
-
+COPY tests tests
 RUN cargo build --release --workspace
 
 FROM debian:bookworm-slim
