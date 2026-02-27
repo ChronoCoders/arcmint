@@ -362,9 +362,12 @@ services:
     volumes:
       - lnd-data:/root/.lnd
       - lnd-init:/lnd-init
-    entrypoint: /bin/sh -c |
-      set -e
-      lncli --network=regtest newaddress p2wkh > /lnd-init/address.txt
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        lncli --network=regtest newaddress p2wkh > /lnd-init/address.txt
       ADDR=$(cat /lnd-init/address.txt | grep address | cut -d'"' -f4)
       bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 101 $ADDR
       sleep 3
