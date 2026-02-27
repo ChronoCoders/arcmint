@@ -83,6 +83,10 @@ struct RateLimitStatus {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     tracing_subscriber::fmt().init();
 
     let port: u16 = env::var("GATEWAY_PORT")

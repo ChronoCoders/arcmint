@@ -35,3 +35,4 @@ rustls-acme = { workspace = true }
 tokio-rustls = { workspace = true }
 subtle = { workspace = true }
 arcmint-core = { path = "../arcmint-core" }
+rustls = { workspace = true, features = ["ring"] }

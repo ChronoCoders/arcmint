@@ -26,3 +26,4 @@ repository.workspace = true
  zeroize = { workspace = true }
 reqwest = { workspace = true }
  arcmint-core = { path = "../arcmint-core" }
+rustls = { workspace = true, features = ["ring"] }
