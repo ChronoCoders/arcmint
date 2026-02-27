@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package routerrpc;
+
+import "lightning.proto";
+
+service Router {
+  rpc SendPaymentV2 (SendPaymentRequest) returns (stream Payment);
+}
+
+message SendPaymentRequest {
+  string payment_request = 1;
+  int64 timeout_seconds = 2;
+  int64 fee_limit_msat = 3;
+}
+
+message Payment {
+  bytes payment_hash = 1;
+  bytes payment_preimage = 2;
+  int64 fee_msat = 3;
+  PaymentStatus status = 4;
+}
+
+enum PaymentStatus {
+  UNKNOWN = 0;
+  IN_FLIGHT = 1;
+  SUCCEEDED = 2;
+  FAILED = 3;
+}
+

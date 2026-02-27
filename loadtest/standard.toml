@@ -1,0 +1,20 @@
+concurrency = 20
+duration_secs = 300
+ramp_up_secs = 30
+full_pipeline_weight = 70
+issuance_burst_weight = 20
+double_spend_weight = 10
+denomination_msat = 100000
+k = 32
+issuance_p99_max_ms = 2000
+spend_p99_max_ms = 1000
+signer_rpc_p99_max_ms = 500
+lightning_settlement_p99_max_ms = 5000
+signing_failure_rate_max = 0.001
+lightning_failure_rate_max = 0.01
+spend_false_negatives_allowed = 0
+coordinator_url = "https://localhost:7000"
+gateway_url = "https://localhost:7002"
+merchant_url = "https://localhost:7003"
+signer_urls = ["https://localhost:7001"]
+

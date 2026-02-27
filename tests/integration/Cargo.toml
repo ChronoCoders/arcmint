@@ -1,0 +1,23 @@
+[package]
+name = "arcmint-integration"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+serde = { workspace = true }
+tempfile = { workspace = true }
+rand = { workspace = true }
+rand_core = { workspace = true }
+curve25519-dalek = { workspace = true }
+arcmint-core = { path = "../../crates/arcmint-core" }

@@ -1,0 +1,457 @@
+version: "3.9"
+
+services:
+  # DEV ONLY: Uses trusted dealer key generation (generate_with_dealer).
+  # Production deployments MUST use the DKG ceremony (dkg_coordinator + dkg_participant).
+  # See README section "Production Key Generation" for the ceremony procedure.
+  certgen:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      [
+        "/bin/sh",
+        "-lc",
+        "set -e; \
+         keygen --threshold=2 --signers=3 --output-dir=/keys; \
+         certgen ca --output-dir /certs --common-name arcmint-internal-ca; \
+         certgen server --output-dir /certs --common-name signer-1 --san-dns signer-1 --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
+         certgen server --output-dir /certs --common-name signer-2 --san-dns signer-2 --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
+         certgen server --output-dir /certs --common-name signer-3 --san-dns signer-3 --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
+         certgen server --output-dir /certs --common-name coordinator --san-dns coordinator --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
+         certgen server --output-dir /certs --common-name gateway --san-dns gateway --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
+         certgen client --output-dir /certs --common-name arcmint-coordinator --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
+         certgen client --output-dir /certs --common-name arcmint-gateway --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem",
+      ]
+    volumes:
+      - frost-keys:/keys
+      - tls-certs:/certs
+    restart: "no"
+
+  signer-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_BIN: arcmint-federation
+    environment:
+      FEDERATION_PORT: "7001"
+      FEDERATION_DB: /var/lib/arcmint/federation.db
+      FROST_KEY_FILE: /keys/signer_1_key.json
+      FROST_PUBKEY_FILE: /keys/public_key.json
+      SIGNER_ID: "1"
+      COORDINATOR_SECRET: ${COORDINATOR_SECRET:-dev-coordinator-secret}
+      TLS_CERT_FILE: /certs/signer-1_cert.pem
+      TLS_KEY_FILE: /certs/signer-1_key.pem
+      TLS_CA_FILE: /certs/ca_cert.pem
+      COORDINATOR_CN: arcmint-coordinator
+    volumes:
+      - signer1-db:/var/lib/arcmint
+      - frost-keys:/keys:ro
+      - tls-certs:/certs:ro
+    depends_on:
+      certgen:
+        condition: service_completed_successfully
+    ports:
+      - "${SIGNER1_PORT:-7001}:7001"
+      - "9001:7001"
+    healthcheck:
+      test: ["CMD", "curl", "--cacert", "/certs/ca_cert.pem", "-f", "https://localhost:7001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  signer-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_BIN: arcmint-federation
+    environment:
+      FEDERATION_PORT: "7002"
+      FEDERATION_DB: /var/lib/arcmint/federation.db
+      FROST_KEY_FILE: /keys/signer_2_key.json
+      FROST_PUBKEY_FILE: /keys/public_key.json
+      SIGNER_ID: "2"
+      COORDINATOR_SECRET: ${COORDINATOR_SECRET:-dev-coordinator-secret}
+      TLS_CERT_FILE: /certs/signer-2_cert.pem
+      TLS_KEY_FILE: /certs/signer-2_key.pem
+      TLS_CA_FILE: /certs/ca_cert.pem
+      COORDINATOR_CN: arcmint-coordinator
+    volumes:
+      - signer2-db:/var/lib/arcmint
+      - frost-keys:/keys:ro
+      - tls-certs:/certs:ro
+    depends_on:
+      certgen:
+        condition: service_completed_successfully
+    ports:
+      - "${SIGNER2_PORT:-7002}:7002"
+      - "9002:7002"
+    healthcheck:
+      test: ["CMD", "curl", "--cacert", "/certs/ca_cert.pem", "-f", "https://localhost:7002/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  signer-3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_BIN: arcmint-federation
+    environment:
+      FEDERATION_PORT: "7003"
+      FEDERATION_DB: /var/lib/arcmint/federation.db
+      FROST_KEY_FILE: /keys/signer_3_key.json
+      FROST_PUBKEY_FILE: /keys/public_key.json
+      SIGNER_ID: "3"
+      COORDINATOR_SECRET: ${COORDINATOR_SECRET:-dev-coordinator-secret}
+      TLS_CERT_FILE: /certs/signer-3_cert.pem
+      TLS_KEY_FILE: /certs/signer-3_key.pem
+      TLS_CA_FILE: /certs/ca_cert.pem
+      COORDINATOR_CN: arcmint-coordinator
+    volumes:
+      - signer3-db:/var/lib/arcmint
+      - frost-keys:/keys:ro
+      - tls-certs:/certs:ro
+    depends_on:
+      certgen:
+        condition: service_completed_successfully
+    ports:
+      - "${SIGNER3_PORT:-7003}:7003"
+      - "9003:7003"
+    healthcheck:
+      test: ["CMD", "curl", "--cacert", "/certs/ca_cert.pem", "-f", "https://localhost:7003/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  coordinator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_BIN: coordinator
+    environment:
+      COORDINATOR_PORT: "7000"
+      SIGNER_URLS: "https://signer-1:7001,https://signer-2:7002,https://signer-3:7003"
+      FROST_PUBKEY_FILE: /keys/public_key.json
+      COORDINATOR_SECRET: ${COORDINATOR_SECRET:-dev-coordinator-secret}
+      GATEWAY_RESOLVE_URL: "https://gateway:7002/resolve"
+      ANCHOR_INTERVAL_SECS: "600"
+      COORDINATOR_TLS_CERT: /certs/coordinator_cert.pem
+      COORDINATOR_TLS_KEY: /certs/coordinator_key.pem
+      GATEWAY_CLIENT_CA: /certs/ca_cert.pem
+      COORDINATOR_CLIENT_CERT: /certs/arcmint-coordinator_cert.pem
+      COORDINATOR_CLIENT_KEY: /certs/arcmint-coordinator_key.pem
+      INTERNAL_CA_FILE: /certs/ca_cert.pem
+      GATEWAY_CN: arcmint-gateway
+      OPERATOR_SECRET: ${OPERATOR_SECRET:-dev-operator-secret}
+      LND_HOST: lnd
+      LND_PORT: "10009"
+      LND_TLS_CERT: /root/.lnd/tls.cert
+      LND_MACAROON: /root/.lnd/data/chain/bitcoin/regtest/admin.macaroon
+      # New Anchor variables
+      BITCOIN_NETWORK: regtest
+      BITCOIN_RPC_URL: ${BITCOIN_RPC_URL:-http://bitcoind:18443}
+      BITCOIN_RPC_USER: ${BITCOIN_RPC_USER:-arcmint}
+      BITCOIN_RPC_PASS: ${BITCOIN_RPC_PASS:-arcmintpass}
+      BITCOIN_WALLET_NAME: ${BITCOIN_WALLET_NAME:-anchor}
+      ANCHOR_WALLET_WIF: ${ANCHOR_WALLET_WIF}
+      ANCHOR_CHANGE_ADDRESS: ${ANCHOR_CHANGE_ADDRESS}
+      ANCHOR_FEE_TARGET_BLOCKS: ${ANCHOR_FEE_TARGET_BLOCKS:-3}
+      ANCHOR_INTERVAL_BLOCKS: ${ANCHOR_INTERVAL_BLOCKS:-6}
+      ANCHOR_MIN_CONFIRMATIONS: ${ANCHOR_MIN_CONFIRMATIONS:-1}
+    volumes:
+      - frost-keys:/keys:ro
+      - tls-certs:/certs:ro
+      - lnd-data:/root/.lnd:ro
+    depends_on:
+      certgen:
+        condition: service_completed_successfully
+      lnd-init:
+        condition: service_completed_successfully
+    ports:
+      - "${COORDINATOR_PORT:-7000}:7000"
+      - "9004:7000"
+    healthcheck:
+      test: ["CMD", "curl", "--cacert", "/certs/ca_cert.pem", "-f", "https://localhost:7000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  dkg-coordinator:
+    profiles: ["dkg"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_BIN: dkg_coordinator
+    environment:
+      DKG_PORT: "${DKG_PORT:-7100}"
+      DKG_OPERATOR_TOKENS: ${DKG_OPERATOR_TOKENS}
+      DKG_TLS_CERT: /certs/dkg_coordinator_cert.pem
+      DKG_TLS_KEY: /certs/dkg_coordinator_key.pem
+      DKG_CA_FILE: /certs/ca_cert.pem
+    volumes:
+      - tls-certs:/certs:ro
+      - dkg-output:/output
+    depends_on:
+      certgen:
+        condition: service_completed_successfully
+    ports:
+      - "${DKG_PORT:-7100}:${DKG_PORT:-7100}"
+    restart: "no"
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_BIN: arcmint-gateway
+    environment:
+      GATEWAY_PORT: "7002"
+      GATEWAY_DB: /var/lib/arcmint/gateway.db
+      FEDERATION_SECRET: ${FEDERATION_SECRET:-dev-federation-secret}
+      GATEWAY_CLIENT_CERT: /certs/arcmint-gateway_cert.pem
+      GATEWAY_CLIENT_KEY: /certs/arcmint-gateway_key.pem
+      INTERNAL_CA_FILE: /certs/ca_cert.pem
+      TLS_CERT_FILE: /certs/gateway_cert.pem
+      TLS_KEY_FILE: /certs/gateway_key.pem
+      ACME_DOMAIN: ""
+      OPERATOR_SECRET: ${OPERATOR_SECRET:-dev-operator-secret}
+    volumes:
+      - gateway-db:/var/lib/arcmint
+      - tls-certs:/certs:ro
+    depends_on:
+      coordinator:
+        condition: service_healthy
+    ports:
+      - "${GATEWAY_PORT:-7002}:7002"
+      - "9005:7002"
+    healthcheck:
+      test: ["CMD", "curl", "--cacert", "/certs/ca_cert.pem", "-f", "https://localhost:7002/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  merchant:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_BIN: arcmint-merchant
+    environment:
+      MERCHANT_PORT: "7003"
+      MERCHANT_DB: /var/lib/arcmint/merchant.db
+      COORDINATOR_URL: "http://coordinator:7000"
+      FROST_PUBKEY_FILE: /keys/public_key.json
+    volumes:
+      - merchant-db:/var/lib/arcmint
+      - frost-keys:/keys:ro
+    depends_on:
+      coordinator:
+        condition: service_healthy
+    ports:
+      - "${MERCHANT_PORT:-7003}:7003"
+      - "9006:7003"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7003/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  arcmint-adversary:
+    profiles: ["adversary"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_BIN: arcmint-adversary
+    environment:
+      COORDINATOR_URL: "https://coordinator:7000"
+      GATEWAY_URL: "https://gateway:7002"
+      MERCHANT_URL: "http://merchant:7003"
+      SIGNER_URLS: "https://signer-1:7001,https://signer-2:7002,https://signer-3:7003"
+      TLS_CA_FILE: /certs/ca_cert.pem
+    volumes:
+      - tls-certs:/certs:ro
+      - adversary-output:/adversary-output
+    depends_on:
+      coordinator:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+      merchant:
+        condition: service_healthy
+    command: >
+      arcmint-adversary
+      --coordinator-url ${COORDINATOR_URL:-https://coordinator:7000}
+      --gateway-url ${GATEWAY_URL:-https://gateway:7002}
+      --merchant-url ${MERCHANT_URL:-http://merchant:7003}
+      --signer-urls ${SIGNER_URLS:-https://signer-1:7001,https://signer-2:7002,https://signer-3:7003}
+      --ca-cert /certs/ca_cert.pem
+      --output /adversary-output/report.json
+      run-all
+
+  bitcoind:
+    image: lncm/bitcoind:v26.0
+    restart: unless-stopped
+    volumes:
+      - bitcoind-data:/data/.bitcoin
+    environment:
+      - BITCOIN_NETWORK=regtest
+    command: >
+      -regtest
+      -rpcuser=arcmint
+      -rpcpassword=arcmintpass
+      -rpcallowip=0.0.0.0/0
+      -rpcbind=0.0.0.0
+      -zmqpubrawblock=tcp://0.0.0.0:28332
+      -zmqpubrawtx=tcp://0.0.0.0:28333
+      -fallbackfee=0.0002
+      -txindex=1
+    healthcheck:
+      test: ["CMD", "bitcoin-cli", "-regtest", "-rpcuser=arcmint", "-rpcpassword=arcmintpass", "getblockchaininfo"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "18443:18443"
+
+  lnd:
+    image: lightningnetwork/lnd:v0.17.4-beta
+    restart: unless-stopped
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+    volumes:
+      - lnd-data:/root/.lnd
+      - lnd-init:/lnd-init
+    environment:
+      - BITCOIN_NETWORK=regtest
+    command: >
+      --bitcoin.active
+      --bitcoin.regtest
+      --bitcoin.node=bitcoind
+      --bitcoind.rpchost=bitcoind:18443
+      --bitcoind.rpcuser=arcmint
+      --bitcoind.rpcpass=arcmintpass
+      --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      --rpclisten=0.0.0.0:10009
+      --restlisten=0.0.0.0:8080
+      --noseedbackup
+      --debuglevel=info
+      --allow-self-payment
+    healthcheck:
+      test: ["CMD", "lncli", "--network=regtest", "getinfo"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "8080:8080"
+
+  lnd-init:
+    image: lightningnetwork/lnd:v0.17.4-beta
+    restart: "no"
+    depends_on:
+      lnd:
+        condition: service_healthy
+    volumes:
+      - lnd-data:/root/.lnd
+      - lnd-init:/lnd-init
+    entrypoint: /bin/sh -c |
+      set -e
+      lncli --network=regtest newaddress p2wkh > /lnd-init/address.txt
+      ADDR=$(cat /lnd-init/address.txt | grep address | cut -d'"' -f4)
+      bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 101 $ADDR
+      sleep 3
+      echo "LND init complete"
+
+  miner:
+    image: lncm/bitcoind:v26.0
+    restart: unless-stopped
+    depends_on:
+      lnd-init:
+        condition: service_completed_successfully
+    entrypoint: /bin/sh -c |
+      ADDR=$(bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass getnewaddress)
+      while true; do
+        bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 1 $ADDR
+        sleep 10
+      done
+
+  prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:v2.48.0
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command: --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.retention.time=15d
+    ports:
+      - "9090:9090"
+
+  grafana:
+    profiles: ["monitoring"]
+    image: grafana/grafana:10.2.0
+    depends_on:
+      - prometheus
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-arcmint-dev}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/arcmint-security.json
+    ports:
+      - "3000:3000"
+
+  arcmint-loadtest:
+    profiles: ["loadtest"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE_BIN: arcmint-loadtest
+    depends_on:
+      coordinator:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+      merchant:
+        condition: service_healthy
+      lnd-init:
+        condition: service_completed_successfully
+    volumes:
+      - tls-certs:/certs:ro
+      - loadtest-output:/output
+    environment:
+      COORDINATOR_URL: "https://coordinator:7000"
+      GATEWAY_URL: "https://gateway:7002"
+      MERCHANT_URL: "https://merchant:7003"
+      SIGNER_URLS: "https://signer-1:7001,https://signer-2:7002,https://signer-3:7003"
+      CA_CERT: /certs/ca_cert.pem
+      OUTPUT: /output/report.json
+    command: >
+      arcmint-loadtest
+      run-all
+      --output /output/report.json
+
+volumes:
+  signer1-db:
+  signer2-db:
+  signer3-db:
+  gateway-db:
+  merchant-db:
+  frost-keys:
+  tls-certs:
+  bitcoind-data:
+  lnd-data:
+  lnd-init:
+  dkg-output:
+  prometheus-data:
+  grafana-data:
+  loadtest-output:

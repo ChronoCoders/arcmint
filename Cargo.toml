@@ -1,0 +1,65 @@
+ [workspace]
+members = [
+    "crates/arcmint-core",
+    "crates/arcmint-federation",
+    "crates/arcmint-gateway",
+    "crates/arcmint-wallet",
+    "crates/arcmint-merchant",
+    "tests/integration",
+    "crates/arcmint-lnd",
+    "crates/arcmint-adversary",
+    "crates/arcmint-loadtest",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Arcmint Developers"]
+repository = "https://github.com/ChronoCoders/arcmint"
+
+[workspace.dependencies]
+tokio = { version = "1.37", features = ["full"] }
+axum = { version = "0.7", features = ["macros"] }
+hyper = { version = "1", features = ["server", "http1", "http2"] }
+hyper-util = { version = "0.1", features = ["server", "http1", "http2", "tokio"] }
+sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio", "sqlite", "macros"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+curve25519-dalek = { version = "4.1", default-features = false, features = ["alloc"] }
+frost-ristretto255 = "1.0.0-rc.0"
+rand = { version = "0.8", features = ["getrandom"] }
+rand_core = "0.6"
+hex = "0.4"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+uuid = { version = "1.7", features = ["v4", "serde"] }
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+hmac = "0.12"
+futures = "0.3"
+clap = { version = "4.5", features = ["derive"] }
+tempfile = "3.10"
+base64 = "0.22"
+
+rcgen = { version = "0.13", features = ["pem", "x509-parser"] }
+rustls = { version = "0.23", features = ["ring"] }
+rustls-pemfile = "2"
+tokio-rustls = "0.26"
+time = "0.3"
+x509-parser = "0.16"
+tower = { version = "0.4", features = ["util"] }
+rustls-acme = { version = "0.10", features = ["tokio"] }
+subtle = "2"
+tokio-stream = { version = "0.1", features = ["net"] }
+tonic = { version = "0.11", features = ["tls", "tls-roots"] }
+tonic-build = "0.11"
+prost = "0.12"
+async-trait = "0.1"
+aes-gcm = { version = "0.10", features = ["aes"] }
+prometheus = "0.13"
+lazy_static = "1"

@@ -1,0 +1,25 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: arcmint-signers
+    static_configs:
+      - targets: ["signer-1:7001", "signer-2:7002", "signer-3:7003"]
+    metrics_path: /metrics
+
+  - job_name: arcmint-coordinator
+    static_configs:
+      - targets: ["coordinator:7000"]
+    metrics_path: /metrics
+
+  - job_name: arcmint-gateway
+    static_configs:
+      - targets: ["gateway:7002"]
+    metrics_path: /metrics
+
+  - job_name: arcmint-merchant
+    static_configs:
+      - targets: ["merchant:7003"]
+    metrics_path: /metrics
+

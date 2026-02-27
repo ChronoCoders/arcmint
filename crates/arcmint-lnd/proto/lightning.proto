@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package lnrpc;
+
+service Lightning {
+  rpc AddInvoice (AddInvoiceRequest) returns (AddInvoiceResponse);
+  rpc LookupInvoice (LookupInvoiceRequest) returns (Invoice);
+  rpc SubscribeInvoices (InvoiceSubscription) returns (stream Invoice);
+  rpc ChannelBalance (ChannelBalanceRequest) returns (ChannelBalanceResponse);
+  rpc GetInfo (GetInfoRequest) returns (GetInfoResponse);
+}
+
+message AddInvoiceRequest {
+  string memo = 1;
+  int64 value_msat = 2;
+  int64 expiry = 3;
+}
+
+message AddInvoiceResponse {
+  bytes r_hash = 1;
+  string payment_request = 2;
+  uint64 add_index = 3;
+}
+
+message LookupInvoiceRequest {
+  bytes r_hash = 1;
+}
+
+message Invoice {
+  bytes r_hash = 1;
+  bytes r_preimage = 2;
+  int64 value_msat = 3;
+  string payment_request = 4;
+  InvoiceState state = 5;
+  uint64 settle_index = 6;
+}
+
+enum InvoiceState {
+  OPEN = 0;
+  SETTLED = 1;
+  CANCELED = 2;
+  ACCEPTED = 3;
+}
+
+message InvoiceSubscription {
+  uint64 settle_index = 1;
+}
+
+message ChannelBalanceRequest {
+}
+
+message ChannelBalanceResponse {
+  int64 local_balance_msat = 1;
+  int64 remote_balance_msat = 2;
+  int64 pending_open_local_msat = 3;
+  int64 pending_open_remote_msat = 4;
+}
+
+message GetInfoRequest {
+}
+
+message GetInfoResponse {
+  string identity_pubkey = 1;
+}
+

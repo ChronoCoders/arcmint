@@ -1,0 +1,103 @@
+{
+  "uid": "arcmint-security",
+  "title": "ArcMint Security",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["arcmint", "security"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Double-spend attempts",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "red", "value": 0.0000001 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(double_spend_attempts_total[5m])",
+          "legendFormat": "double-spend/sec"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Note verification failures by reason",
+      "targets": [
+        {
+          "expr": "sum(rate(note_verification_failures_total[5m])) by (reason)",
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Rate limit hits",
+      "targets": [
+        {
+          "expr": "rate(rate_limit_hits_total[5m])",
+          "legendFormat": "hits/sec"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Signing failures by reason",
+      "targets": [
+        {
+          "expr": "sum(rate(signing_failures_total[5m])) by (reason)",
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Merchant key validation failures",
+      "targets": [
+        {
+          "expr": "sum(rate(merchant_key_validation_total{status=~\"invalid|revoked\"}[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Registration attempts by status",
+      "targets": [
+        {
+          "expr": "sum(rate(registration_attempts_total[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
+    }
+  ]
+}
+

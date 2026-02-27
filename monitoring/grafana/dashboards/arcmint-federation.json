@@ -1,0 +1,144 @@
+{
+  "uid": "arcmint-federation",
+  "title": "ArcMint Federation Health",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["arcmint", "federation"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Issuance requests/sec",
+      "targets": [
+        {
+          "expr": "sum(rate(issuance_requests_total[5m]))",
+          "legendFormat": "all"
+        },
+        {
+          "expr": "sum(rate(issuance_requests_total[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "barchart",
+      "title": "Issuance success vs failure",
+      "options": {
+        "legend": { "displayMode": "list", "showLegend": true },
+        "stacking": "normal"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(issuance_requests_total[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "FROST round2 signing latency (p50/p95/p99)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(frost_round_duration_seconds_bucket{round=\"2\"}[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(frost_round_duration_seconds_bucket{round=\"2\"}[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(frost_round_duration_seconds_bucket{round=\"2\"}[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Signer RPC latency per signer (p95)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(signer_rpc_latency_seconds_bucket[5m])) by (signer_id, le))",
+          "legendFormat": "{{signer_id}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Active sessions count",
+      "targets": [
+        {
+          "expr": "active_sessions_count",
+          "legendFormat": "active_sessions"
+        }
+      ],
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 16 }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "DB write latency (p95)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(db_write_latency_seconds_bucket[5m])) by (operation, le))",
+          "legendFormat": "{{operation}} p95"
+        }
+      ],
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 16 }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Spend verification latency (p50/p95)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(spend_verification_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(spend_verification_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ],
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 16 }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Anchor slot",
+      "targets": [
+        {
+          "expr": "anchor_slot",
+          "legendFormat": "slot"
+        }
+      ],
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 23 }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Anchor submit success vs failure",
+      "targets": [
+        {
+          "expr": "sum(rate(anchor_submit_total[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "gridPos": { "h": 5, "w": 18, "x": 6, "y": 23 }
+    }
+  ]
+}
+
