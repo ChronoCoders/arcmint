@@ -442,9 +442,16 @@ services:
       - -c
       - |
         set -e
+        # Wait for lnd-2 to be ready and get its pubkey
+        echo "Fetching lnd-2 pubkey..."
+        # We need to wait a bit more for lnd-2 to be fully ready to accept RPC
+        sleep 10
+        LND2_PUBKEY=$$(lncli --network=regtest --rpcserver=lnd-2:10009 --tlscertpath=/certs/lnd-2_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon getinfo | grep identity_pubkey | cut -d'"' -f4)
+        echo "LND-2 Pubkey: $$LND2_PUBKEY"
+        
         # Open channel from lnd to lnd-2
         echo "Opening channel to lnd-2..."
-        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon openchannel --node_key=03b788a5da56964121274daaf368716234c052a8c9f7c3a215fca1292667fad581 --local_amt=10000000 --connect=lnd-2:10009
+        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon openchannel --node_key=$$LND2_PUBKEY --local_amt=10000000 --connect=lnd-2:10009
         
         # Mine 6 blocks to confirm the channel
         echo "Mining 6 blocks to confirm channel..."
