@@ -37,7 +37,7 @@ services:
         SERVICE_BIN: arcmint-federation
     environment:
       FEDERATION_PORT: "7001"
-      FEDERATION_DB: /var/lib/arcmint/federation.db
+      FEDERATION_DB: /var/lib/arcmint/federation.db?mode=rwc
       FROST_KEY_FILE: /keys/signer_1_key.json
       FROST_PUBKEY_FILE: /keys/public_key.json
       SIGNER_ID: "1"
@@ -70,7 +70,7 @@ services:
         SERVICE_BIN: arcmint-federation
     environment:
       FEDERATION_PORT: "7002"
-      FEDERATION_DB: /var/lib/arcmint/federation.db
+      FEDERATION_DB: /var/lib/arcmint/federation.db?mode=rwc
       FROST_KEY_FILE: /keys/signer_2_key.json
       FROST_PUBKEY_FILE: /keys/public_key.json
       SIGNER_ID: "2"
@@ -103,7 +103,7 @@ services:
         SERVICE_BIN: arcmint-federation
     environment:
       FEDERATION_PORT: "7003"
-      FEDERATION_DB: /var/lib/arcmint/federation.db
+      FEDERATION_DB: /var/lib/arcmint/federation.db?mode=rwc
       FROST_KEY_FILE: /keys/signer_3_key.json
       FROST_PUBKEY_FILE: /keys/public_key.json
       SIGNER_ID: "3"
@@ -252,7 +252,7 @@ services:
         SERVICE_BIN: arcmint-merchant
     environment:
       MERCHANT_PORT: "7003"
-      MERCHANT_DB: /var/lib/arcmint/merchant.db
+      MERCHANT_DB: /var/lib/arcmint/merchant.db?mode=rwc
       COORDINATOR_URL: "http://coordinator:7000"
       FROST_PUBKEY_FILE: /keys/public_key.json
     volumes:
