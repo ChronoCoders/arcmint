@@ -452,7 +452,7 @@ services:
         
         # Connect to lnd-2 first
         echo "Connecting to lnd-2..."
-        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon connect $$LND2_PUBKEY@lnd-2:10009 || echo "Connection already exists or failed, proceeding..."
+        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon connect $$LND2_PUBKEY@lnd-2:9735 || echo "Connection already exists or failed, proceeding..."
         
         # Open channel from lnd to lnd-2
         echo "Opening channel to lnd-2..."
