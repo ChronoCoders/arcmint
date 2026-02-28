@@ -450,9 +450,13 @@ services:
         LND2_PUBKEY=$$(lncli --network=regtest --rpcserver=lnd-2:10009 --tlscertpath=/certs/lnd-2_cert.pem --macaroonpath=/lnd-2/data/chain/bitcoin/regtest/admin.macaroon getinfo | grep identity_pubkey | cut -d'"' -f4)
         echo "LND-2 Pubkey: $$LND2_PUBKEY"
         
+        # Connect to lnd-2 first
+        echo "Connecting to lnd-2..."
+        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon connect $$LND2_PUBKEY@lnd-2:10009 || echo "Connection already exists or failed, proceeding..."
+        
         # Open channel from lnd to lnd-2
         echo "Opening channel to lnd-2..."
-        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon openchannel --node_key=$$LND2_PUBKEY --local_amt=10000000 --connect=lnd-2:10009
+        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon openchannel --node_key=$$LND2_PUBKEY --local_amt=10000000
         
         # Mine 6 blocks to confirm the channel
         echo "Mining 6 blocks to confirm channel..."
