@@ -218,6 +218,7 @@ services:
     environment:
       GATEWAY_PORT: "7002"
       GATEWAY_DB: /var/lib/arcmint/gateway.db
+      GATEWAY_SECRET: ${GATEWAY_SECRET:-dev-gateway-secret}
       FEDERATION_SECRET: ${FEDERATION_SECRET:-dev-federation-secret}
       GATEWAY_CLIENT_CERT: /certs/arcmint-gateway_cert.pem
       GATEWAY_CLIENT_KEY: /certs/arcmint-gateway_key.pem
