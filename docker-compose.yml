@@ -11,6 +11,7 @@ services:
         "/bin/sh",
         "-lc",
         "set -e; \
+         if [ -f /certs/ca_cert.pem ]; then echo 'certs already exist, skipping'; exit 0; fi; \
          keygen --threshold=2 --signers=3 --output-dir=/keys; \
          certgen ca --output-dir /certs --common-name arcmint-internal-ca; \
          certgen server --output-dir /certs --common-name signer-1 --san-dns signer-1 --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
