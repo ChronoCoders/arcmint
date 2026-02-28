@@ -456,7 +456,7 @@ services:
         
         # Open channel from lnd to lnd-2
         echo "Opening channel to lnd-2..."
-        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon openchannel --node_key=$$LND2_PUBKEY --local_amt=10000000 --sat_per_vbyte=1
+        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon openchannel --node_key=$$LND2_PUBKEY --local_amt=10000000 --sat_per_vbyte=1 --block=false
         
         # Mine 6 blocks to confirm the channel
         echo "Mining 6 blocks to confirm channel..."
