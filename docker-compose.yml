@@ -454,9 +454,14 @@ services:
         echo "Connecting to lnd-2..."
         lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon connect $$LND2_PUBKEY@lnd-2:9735 || echo "Connection already exists or failed, proceeding..."
         
-        # Open channel from lnd to lnd-2
-        echo "Opening channel to lnd-2..."
-        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon openchannel --node_key=$$LND2_PUBKEY --local_amt=10000000 --sat_per_vbyte=1 --block=false
+        # Check if channel already exists
+        ACTIVE=$$(lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon listchannels | grep -c channel_point || true)
+        if [ "$$ACTIVE" -gt "0" ]; then
+          echo "Channel already active, skipping open"
+        else
+          echo "Opening channel to lnd-2..."
+          lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon openchannel --node_key=$$LND2_PUBKEY --local_amt=10000000 --sat_per_vbyte=1 --block=false || echo "openchannel failed, proceeding to mine"
+        fi
         
         # Mine 6 blocks to confirm the channel
         echo "Mining 6 blocks to confirm channel..."
