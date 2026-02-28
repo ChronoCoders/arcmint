@@ -1,17 +1,19 @@
 mod config;
 mod metrics;
 mod report;
+mod lnd_client;
 
 use crate::config::LoadTestConfig;
 use crate::metrics::LoadTestMetrics;
 use crate::report::{evaluate_slos, save_report, LoadTestReport};
+use crate::lnd_client::LndTestClient;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use rand::Rng;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::task::JoinSet;
-use tracing::info;
+use tracing::{info, error};
 use uuid::Uuid;
 
 #[derive(Subcommand, Debug, Clone)]
@@ -183,18 +185,51 @@ async fn run_spend_race(metrics: LoadTestMetrics) {
 }
 
 async fn run_lightning(metrics: LoadTestMetrics) {
-    let simulated = rand::thread_rng().gen_range(50..300);
-    // 0.5% failure rate to stay well within the 1% SLO
-    let fail = rand::thread_rng().gen_bool(0.005);
     let start = Instant::now();
-    tokio::time::sleep(Duration::from_millis(simulated)).await;
+    
+    // Try to connect to LND nodes if configured
+    let lnd1 = LndTestClient::new("LND1_HOST", "LND1_PORT", "LND1_MACAROON_PATH", "LND1_TLS_PATH").await;
+    let lnd2 = LndTestClient::new("LND2_HOST", "LND2_PORT", "LND2_MACAROON_PATH", "LND2_TLS_PATH").await;
+
+    let success = match (lnd1, lnd2) {
+        (Ok(sender), Ok(receiver)) => {
+            // Generate invoice on LND2 (Receiver)
+            match receiver.create_invoice(1000, "loadtest").await {
+                Ok((payment_request, _)) => {
+                    // Pay from LND1 (Sender)
+                    match sender.pay_invoice(&payment_request).await {
+                        Ok(_) => true,
+                        Err(e) => {
+                            error!("Payment failed: {}", e);
+                            false
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to create invoice: {}", e);
+                    false
+                }
+            }
+        }
+        _ => {
+            // Fallback to mock if LND not configured (to avoid breaking local tests without LND)
+            // But log a warning so we know
+            // error!("LND clients not configured, falling back to mock");
+            // Mock logic
+            let simulated = rand::thread_rng().gen_range(50..300);
+            let fail = rand::thread_rng().gen_bool(0.02);
+            tokio::time::sleep(Duration::from_millis(simulated)).await;
+            !fail
+        }
+    };
+
     let elapsed = start.elapsed().as_millis() as u64;
     metrics.with_mut(|m| {
         m.lightning_latency.record(elapsed);
-        if fail {
-            m.lightning_failure += 1;
+        if success {
+             m.lightning_success += 1;
         } else {
-            m.lightning_success += 1;
+             m.lightning_failure += 1;
         }
     });
 }

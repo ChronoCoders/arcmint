@@ -475,7 +475,7 @@ services:
           echo "Channel already active, skipping open"
         else
           echo "Opening channel to lnd-2..."
-          lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon openchannel --node_key=$$LND2_PUBKEY --local_amt=10000000 --sat_per_vbyte=1 --block=false || echo "openchannel failed, proceeding to mine"
+          lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon openchannel --node_key=$$LND2_PUBKEY --local_amt=10000000 --push_amt=5000000 --sat_per_vbyte=1 --block=false || echo "openchannel failed, proceeding to mine"
         fi
         
         # Mine 6 blocks to confirm the channel
@@ -555,6 +555,8 @@ services:
     volumes:
       - tls-certs:/certs:ro
       - loadtest-output:/output
+      - lnd-data:/root/.lnd:ro
+      - lnd-2-data:/lnd-2:ro
     environment:
       COORDINATOR_URL: "https://coordinator:7000"
       GATEWAY_URL: "https://gateway:7002"
@@ -562,6 +564,15 @@ services:
       SIGNER_URLS: "https://signer-1:7001,https://signer-2:7002,https://signer-3:7003"
       CA_CERT: /certs/ca_cert.pem
       OUTPUT: /output/report.json
+      # LND Credentials for real testing
+      LND1_HOST: "lnd"
+      LND1_PORT: "8080"
+      LND1_MACAROON_PATH: "/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon"
+      LND1_TLS_PATH: "/certs/lnd_cert.pem"
+      LND2_HOST: "lnd-2"
+      LND2_PORT: "8080"
+      LND2_MACAROON_PATH: "/lnd-2/data/chain/bitcoin/regtest/admin.macaroon"
+      LND2_TLS_PATH: "/certs/lnd-2_cert.pem"
     command: >
       arcmint-loadtest
       run-all
