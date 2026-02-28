@@ -14,7 +14,12 @@ pub struct LndTestClient {
 }
 
 impl LndTestClient {
-    pub async fn new(host_env: &str, port_env: &str, macaroon_env: &str, tls_env: &str) -> Result<Self> {
+    pub async fn new(
+        host_env: &str,
+        port_env: &str,
+        macaroon_env: &str,
+        tls_env: &str,
+    ) -> Result<Self> {
         let host = env::var(host_env).unwrap_or_else(|_| "localhost".to_string());
         let rest_port: u16 = env::var(port_env)
             .ok()
@@ -44,6 +49,7 @@ impl LndTestClient {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn get_info(&self) -> Result<Value> {
         let url = format!("{}/v1/getinfo", self.base_url);
         let resp: reqwest::Response = self

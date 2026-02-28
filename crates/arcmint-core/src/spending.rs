@@ -272,7 +272,7 @@ pub fn verify_frost_signature(
     serialized.copy_from_slice(signature_bytes);
     let signature = frost_ristretto255::Signature::deserialize(serialized)
         .map_err(|e| ArcMintError::SigningError(format!("invalid signature encoding: {e}")))?;
-    let message = note_hash(data);
+    let message = note_hash(data)?;
     public_key_package
         .verifying_key()
         .verify(&message, &signature)

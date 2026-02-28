@@ -309,10 +309,15 @@ async fn spend_command(
         .notes
         .iter()
         .position(|n| n.serial.eq_ignore_ascii_case(serial))
-        .ok_or_else(|| anyhow!("note with serial {} not found", serial))?;
+        .ok_or_else(|| anyhow!("note with serial {serial} not found"))?;
 
     if wallet.notes[pos].status == "Spent" {
         return Err(anyhow!("note already marked as spent"));
+    }
+    if wallet.notes[pos].status == "PendingSpend" {
+        return Err(anyhow!(
+            "note is in PendingSpend state — it may have already been revealed to a merchant; treat as potentially spent"
+        ));
     }
 
     let stored = wallet.notes[pos].clone();
@@ -360,6 +365,9 @@ async fn spend_command(
 
     let proof = generate_spend_proof(&unsigned, &challenge.challenge_bits)?;
 
+    wallet.notes[pos].status = "PendingSpend".to_string();
+    save_wallet(wallet_path, &wallet)?;
+
     let serial_bytes = hex::decode(&stored.serial)?;
     if serial_bytes.len() != 32 {
         return Err(anyhow!("invalid serial length for stored note"));
@@ -374,22 +382,30 @@ async fn spend_command(
     };
 
     let complete_url = format!("{merchant_url}/payment/complete");
-    let complete_resp = client
-        .post(&complete_url)
-        .json(&complete_req)
-        .send()
-        .await?;
-    if !complete_resp.status().is_success() {
-        return Err(anyhow!(
-            "payment/complete failed with HTTP {}",
-            complete_resp.status()
-        ));
-    }
-    let spend_resp: SpendResponse = complete_resp.json().await?;
+    let complete_result = client.post(&complete_url).json(&complete_req).send().await;
 
-    if spend_resp.accepted {
-        wallet.notes[pos].status = "Spent".to_string();
-        save_wallet(wallet_path, &wallet)?;
+    match complete_result {
+        Ok(complete_resp) => {
+            if !complete_resp.status().is_success() {
+                return Err(anyhow!(
+                    "payment/complete failed with HTTP {}; note remains in PendingSpend state — treat as potentially spent",
+                    complete_resp.status()
+                ));
+            }
+            let spend_resp: SpendResponse = complete_resp.json().await?;
+
+            if spend_resp.accepted {
+                wallet.notes[pos].status = "Spent".to_string();
+            } else {
+                wallet.notes[pos].status = "Unspent".to_string();
+            }
+            save_wallet(wallet_path, &wallet)?;
+        }
+        Err(e) => {
+            return Err(anyhow!(
+                "network error during payment/complete: {e}; note remains in PendingSpend state — treat as potentially spent"
+            ));
+        }
     }
 
     Ok(())
@@ -420,16 +436,20 @@ fn save_wallet(path: &Path, wallet: &WalletFile) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
     let json = serde_json::to_vec_pretty(wallet)?;
-    let mut file = fs::File::create(path)?;
+
+    let tmp_path = path.with_extension("json.tmp");
+    let mut file = fs::File::create(&tmp_path)?;
     file.write_all(&json)?;
-    file.flush()?;
+    file.sync_all()?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = fs::Permissions::from_mode(0o600);
-        fs::set_permissions(path, perms)?;
+        fs::set_permissions(&tmp_path, perms)?;
     }
+
+    fs::rename(&tmp_path, path)?;
 
     Ok(())
 }
@@ -443,10 +463,7 @@ fn load_wallet(path: &Path) -> Result<WalletFile> {
         let metadata = fs::metadata(path)?;
         let mode = metadata.permissions().mode() & 0o777;
         if mode != 0o600 {
-            eprintln!(
-                "warning: wallet file permissions are {:o}, expected 0600",
-                mode
-            );
+            eprintln!("warning: wallet file permissions are {mode:o}, expected 0600");
         }
     }
 

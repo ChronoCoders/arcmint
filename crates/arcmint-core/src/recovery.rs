@@ -77,12 +77,21 @@ pub fn recover_theta_u(
             let bit_b = bit_from_scalar_bytes(&rs_b.value_scalar, i, "B")?;
             theta_bits[i] = bit_a ^ bit_b;
             resolved += 1;
+        } else {
+            let bit = bit_from_scalar_bytes(&rs_a.value_scalar, i, "A")?;
+            let bit2 = bit_from_scalar_bytes(&rs_b.value_scalar, i, "B")?;
+            if bit != bit2 {
+                return Err(ArcMintError::InvalidProof(format!(
+                    "same-challenge positions yield different bits at position {i}"
+                )));
+            }
+            theta_bits[i] = 0;
         }
     }
 
-    if resolved < k {
+    if resolved == 0 {
         return Err(ArcMintError::InvalidProof(
-            "fewer than k bits resolved for theta_u".to_string(),
+            "no differing challenge positions — cannot recover any theta bits".to_string(),
         ));
     }
 

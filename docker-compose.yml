@@ -253,11 +253,15 @@ services:
     environment:
       MERCHANT_PORT: "7003"
       MERCHANT_DB: /var/lib/arcmint/merchant.db?mode=rwc
-      COORDINATOR_URL: "http://coordinator:7000"
+      COORDINATOR_URL: "https://coordinator:7000"
       FROST_PUBKEY_FILE: /keys/public_key.json
+      TLS_CERT_FILE: /certs/coordinator_cert.pem
+      TLS_KEY_FILE: /certs/coordinator_key.pem
+      INTERNAL_CA_FILE: /certs/ca_cert.pem
     volumes:
       - merchant-db:/var/lib/arcmint
       - frost-keys:/keys:ro
+      - tls-certs:/certs:ro
     depends_on:
       coordinator:
         condition: service_healthy
@@ -265,7 +269,7 @@ services:
       - "${MERCHANT_PORT:-7003}:7003"
       - "9006:7003"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7003/health"]
+      test: ["CMD", "curl", "-k", "--cacert", "/certs/ca_cert.pem", "-f", "https://localhost:7003/health"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -280,7 +284,7 @@ services:
     environment:
       COORDINATOR_URL: "https://coordinator:7000"
       GATEWAY_URL: "https://gateway:7002"
-      MERCHANT_URL: "http://merchant:7003"
+      MERCHANT_URL: "https://merchant:7003"
       SIGNER_URLS: "https://signer-1:7001,https://signer-2:7002,https://signer-3:7003"
       TLS_CA_FILE: /certs/ca_cert.pem
     volumes:
@@ -297,7 +301,7 @@ services:
       arcmint-adversary
       --coordinator-url ${COORDINATOR_URL:-https://coordinator:7000}
       --gateway-url ${GATEWAY_URL:-https://gateway:7002}
-      --merchant-url ${MERCHANT_URL:-http://merchant:7003}
+      --merchant-url ${MERCHANT_URL:-https://merchant:7003}
       --signer-urls ${SIGNER_URLS:-https://signer-1:7001,https://signer-2:7002,https://signer-3:7003}
       --ca-cert /certs/ca_cert.pem
       --output /adversary-output/report.json
@@ -541,7 +545,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      network: host
       args:
         SERVICE_BIN: arcmint-loadtest
     depends_on:
@@ -563,7 +566,7 @@ services:
       GATEWAY_URL: "https://gateway:7002"
       MERCHANT_URL: "https://merchant:7003"
       SIGNER_URLS: "https://signer-1:7001,https://signer-2:7002,https://signer-3:7003"
-      CA_CERT: /certs/ca_cert.pem
+      CA_CERT_PATH: /certs/ca_cert.pem
       OUTPUT: /output/report.json
       # LND Credentials for real testing
       LND1_HOST: "lnd"

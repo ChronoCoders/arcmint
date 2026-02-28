@@ -297,7 +297,7 @@ async fn main() {
     let db_url = if db_path.starts_with("sqlite:") {
         db_path
     } else {
-        format!("sqlite://{}", db_path)
+        format!("sqlite://{db_path}")
     };
 
     let pool = SqlitePoolOptions::new()
@@ -607,7 +607,9 @@ async fn issue_begin(
     State(state): State<AppState>,
     Json(req): Json<IssuanceRequest>,
 ) -> impl IntoResponse {
-    if req.blinded_candidates.is_empty() {
+    const MAX_CANDIDATES: usize = 512;
+
+    if req.blinded_candidates.is_empty() || req.blinded_candidates.len() > MAX_CANDIDATES {
         ISSUANCE_REQUESTS_TOTAL
             .with_label_values(&["rejected"])
             .inc();
@@ -631,7 +633,16 @@ async fn issue_begin(
         return StatusCode::BAD_REQUEST.into_response();
     }
 
-    let message = note_hash(&closed_candidate);
+    let message = match note_hash(&closed_candidate) {
+        Ok(m) => m,
+        Err(e) => {
+            error!("note_hash failed: {e:?}");
+            ISSUANCE_REQUESTS_TOTAL
+                .with_label_values(&["rejected"])
+                .inc();
+            return StatusCode::BAD_REQUEST.into_response();
+        }
+    };
     let message_hash = hash_message(&message);
 
     let session_id = Uuid::new_v4().to_string();

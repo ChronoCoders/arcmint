@@ -39,7 +39,7 @@ fn parse_ca_bundle(ca_cert_pem: &str, ca_key_pem: &str) -> Result<(Certificate, 
 }
 
 pub fn generate_ca(common_name: &str) -> Result<CertBundle> {
-    println!("Generating CA certificate for {}", common_name);
+    println!("Generating CA certificate for {common_name}");
     let mut params = CertificateParams::new(vec![common_name.to_string()])
         .map_err(|e| ArcMintError::CryptoError(format!("CA params generation failed: {e}")))?;
     params.key_identifier_method = KeyIdMethod::Sha256;
@@ -102,7 +102,7 @@ pub fn generate_client_cert(
     ca_cert_pem: &str,
     ca_key_pem: &str,
 ) -> Result<CertBundle> {
-    println!("Generating client certificate for {}", common_name);
+    println!("Generating client certificate for {common_name}");
     let mut params = CertificateParams::new(vec![common_name.to_string()])
         .map_err(|e| ArcMintError::CryptoError(format!("client params generation failed: {e}")))?;
     params.key_identifier_method = KeyIdMethod::Sha256;

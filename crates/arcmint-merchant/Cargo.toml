@@ -27,3 +27,7 @@ repository.workspace = true
 reqwest = { workspace = true }
  arcmint-core = { path = "../arcmint-core" }
 rustls = { workspace = true, features = ["ring"] }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+tokio-rustls = { workspace = true }
+tower = { workspace = true }

@@ -53,7 +53,7 @@ impl AnchorTxBuilder {
         let payload_push: &PushBytes = payload_bytes
             .as_slice()
             .try_into()
-            .map_err(|e| anyhow!("payload too long for push: {}", e))?;
+            .map_err(|e| anyhow!("payload too long for push: {e}"))?;
 
         // Output 1: OP_RETURN
         let script_op_return = ScriptBuilder::new()

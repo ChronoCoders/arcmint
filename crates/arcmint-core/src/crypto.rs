@@ -150,6 +150,7 @@ where
 
 pub fn hash_identity(identity_id: &str) -> IdentityHash {
     let mut hasher = Sha256::new();
+    hasher.update(b"arcmint:identity:v1");
     hasher.update(identity_id.as_bytes());
     let digest = hasher.finalize();
     let mut bytes = [0u8; 32];
@@ -159,6 +160,7 @@ pub fn hash_identity(identity_id: &str) -> IdentityHash {
 
 pub fn compute_theta(identity_hash: &IdentityHash, r_u: &Scalar) -> [u8; 32] {
     let mut hasher = Sha256::new();
+    hasher.update(b"arcmint:theta:v1");
     hasher.update(identity_hash.0);
     hasher.update(r_u.0.to_bytes());
     let digest = hasher.finalize();

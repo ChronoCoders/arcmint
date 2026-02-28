@@ -3,11 +3,16 @@ use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(any(test, feature = "dev-keygen"))]
+use std::path::PathBuf;
+#[cfg(any(test, feature = "dev-keygen"))]
 use tracing::{info, warn};
 
 use frost_ristretto255::aggregate;
-use frost_ristretto255::keys::{self, IdentifierList, KeyPackage, PublicKeyPackage};
+#[cfg(any(test, feature = "dev-keygen"))]
+use frost_ristretto255::keys::{self, IdentifierList};
+use frost_ristretto255::keys::{KeyPackage, PublicKeyPackage};
 use frost_ristretto255::round1::{self, SigningCommitments, SigningNonces};
 use frost_ristretto255::round2::{self, SignatureShare};
 use frost_ristretto255::Identifier as FrostIdentifier;
@@ -44,6 +49,7 @@ pub struct SigningCommitment {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AggregatedSignature(pub Vec<u8>);
 
+#[cfg(any(test, feature = "dev-keygen"))]
 pub fn generate_key_package(
     threshold: u16,
     max_signers: u16,
@@ -109,6 +115,7 @@ pub fn save_public_key_package(package: &PublicKeyPackage, path: &Path) -> Resul
     Ok(())
 }
 
+#[cfg(any(test, feature = "dev-keygen"))]
 pub fn distribute_dev_keys(
     threshold: u16,
     max_signers: u16,

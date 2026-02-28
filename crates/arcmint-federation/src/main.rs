@@ -91,7 +91,7 @@ async fn main() {
     let db_url = if db_path.starts_with("sqlite:") {
         db_path
     } else {
-        format!("sqlite://{}", db_path)
+        format!("sqlite://{db_path}")
     };
 
     let pool = SqlitePoolOptions::new()

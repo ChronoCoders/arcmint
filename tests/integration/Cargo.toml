@@ -20,4 +20,4 @@ tempfile = { workspace = true }
 rand = { workspace = true }
 rand_core = { workspace = true }
 curve25519-dalek = { workspace = true }
-arcmint-core = { path = "../../crates/arcmint-core" }
+arcmint-core = { path = "../../crates/arcmint-core", features = ["dev-keygen"] }

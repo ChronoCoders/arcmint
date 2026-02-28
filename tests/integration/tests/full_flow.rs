@@ -656,9 +656,7 @@ async fn test_full_issuance_and_spend() -> Result<()> {
         });
         assert!(
             matching.is_some(),
-            "expected payment with denomination {} and serial {} not found",
-            denomination,
-            expected_serial_hex
+            "expected payment with denomination {denomination} and serial {expected_serial_hex} not found"
         );
 
         let audit_url = format!("https://127.0.0.1:{coordinator_port}/audit");
@@ -687,7 +685,7 @@ async fn wait_for_health(client: &Client, url: &str, timeout: Duration) -> Resul
     let start = tokio::time::Instant::now();
     loop {
         if start.elapsed() > timeout {
-            anyhow::bail!("health check timeout for {}", url);
+            anyhow::bail!("health check timeout for {url}");
         }
         let res = client.get(url).send().await;
         if let Ok(resp) = res {

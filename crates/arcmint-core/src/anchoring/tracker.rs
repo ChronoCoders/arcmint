@@ -36,7 +36,7 @@ impl std::str::FromStr for AnchorTxStatus {
             "confirmed" => Ok(AnchorTxStatus::Confirmed),
             "reorged" => Ok(AnchorTxStatus::Reorged),
             "evicted" => Ok(AnchorTxStatus::Evicted),
-            _ => Err(anyhow!("invalid anchor tx status: {}", s)),
+            _ => Err(anyhow!("invalid anchor tx status: {s}")),
         }
     }
 }

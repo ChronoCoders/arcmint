@@ -89,8 +89,8 @@ fn main() -> Result<()> {
                 &ca_cert_pem,
                 &ca_key_pem,
             )?;
-            let cert_path = output_dir.join(format!("{}_cert.pem", common_name));
-            let key_path = output_dir.join(format!("{}_key.pem", common_name));
+            let cert_path = output_dir.join(format!("{common_name}_cert.pem"));
+            let key_path = output_dir.join(format!("{common_name}_key.pem"));
             save_cert_bundle(&bundle, &cert_path, &key_path)?;
         }
         Commands::Client {
@@ -102,8 +102,8 @@ fn main() -> Result<()> {
             let ca_cert_pem = read_file(&ca_cert)?;
             let ca_key_pem = read_file(&ca_key)?;
             let bundle = generate_client_cert(&common_name, &ca_cert_pem, &ca_key_pem)?;
-            let cert_path = output_dir.join(format!("{}_cert.pem", common_name));
-            let key_path = output_dir.join(format!("{}_key.pem", common_name));
+            let cert_path = output_dir.join(format!("{common_name}_cert.pem"));
+            let key_path = output_dir.join(format!("{common_name}_key.pem"));
             save_cert_bundle(&bundle, &cert_path, &key_path)?;
         }
     }

@@ -145,72 +145,98 @@ impl SpentRegistry {
         theta_u: &[u8; 32],
     ) -> Result<Option<([u8; 32], Vec<u8>, Vec<u8>)>> {
         let serial_hex = hex::encode(serial.0);
+        let challenge_2_hex = hex::encode(challenge_2);
+        let theta_hex = hex::encode(theta_u);
         let spent_at = current_timestamp();
+
+        let mut conn = self.pool.acquire().await?;
+
+        sqlx::query("BEGIN IMMEDIATE")
+            .execute(&mut *conn)
+            .await?;
 
         let row = sqlx::query(
             "SELECT challenge_1, challenge_2, theta_u FROM spent_notes WHERE serial = ?1",
         )
         .bind(&serial_hex)
-        .fetch_optional(&self.pool)
-        .await?;
+        .fetch_optional(&mut *conn)
+        .await;
 
-        if let Some(row) = row {
-            let challenge_1_hex: String = row.try_get("challenge_1")?;
-            let existing_challenge_2: Option<String> = row.try_get("challenge_2")?;
-            let existing_theta_hex: Option<String> = row.try_get("theta_u")?;
-
-            let challenge_1_bytes = hex::decode(&challenge_1_hex).map_err(|e| {
-                ArcMintError::RegistryError(format!("invalid challenge_1 hex in DB: {e}"))
-            })?;
-
-            let theta_bytes = if let Some(ref theta_hex) = existing_theta_hex {
-                let decoded = hex::decode(theta_hex).map_err(|e| {
-                    ArcMintError::RegistryError(format!("invalid theta_u hex in DB: {e}"))
-                })?;
-                if decoded.len() != 32 {
-                    return Err(ArcMintError::RegistryError(
-                        "invalid theta_u length in DB".to_string(),
-                    ));
-                }
-                let mut arr = [0u8; 32];
-                arr.copy_from_slice(&decoded);
-                arr
-            } else {
-                *theta_u
-            };
-
-            if existing_challenge_2.is_none() || existing_theta_hex.is_none() {
-                let challenge_2_hex = hex::encode(challenge_2);
-                let theta_hex = hex::encode(theta_u);
-
-                sqlx::query(
-                    "UPDATE spent_notes
-                      SET challenge_2 = ?1, theta_u = ?2, spent_at = ?3
-                      WHERE serial = ?4",
-                )
-                .bind(challenge_2_hex)
-                .bind(theta_hex)
-                .bind(spent_at)
-                .bind(&serial_hex)
-                .execute(&self.pool)
-                .await?;
+        let row = match row {
+            Ok(r) => r,
+            Err(e) => {
+                let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
+                return Err(e.into());
             }
+        };
 
-            Ok(Some((theta_bytes, challenge_1_bytes, challenge_2.to_vec())))
-        } else {
-            let challenge_hex = hex::encode(challenge_2);
+        match row {
+            Some(row) => {
+                let process = async {
+                    let challenge_1_hex: String = row.try_get("challenge_1")?;
+                    let existing_challenge_2: Option<String> = row.try_get("challenge_2")?;
+                    let existing_theta_hex: Option<String> = row.try_get("theta_u")?;
 
-            sqlx::query(
-                "INSERT INTO spent_notes (serial, challenge_1, challenge_2, theta_u, spent_at)
-                  VALUES (?1, ?2, NULL, NULL, ?3)",
-            )
-            .bind(&serial_hex)
-            .bind(challenge_hex)
-            .bind(spent_at)
-            .execute(&self.pool)
-            .await?;
+                    let challenge_1_bytes = hex::decode(&challenge_1_hex).map_err(|e| {
+                        ArcMintError::RegistryError(format!("invalid challenge_1 hex in DB: {e}"))
+                    })?;
 
-            Ok(None)
+                    let theta_bytes = if let Some(ref existing_hex) = existing_theta_hex {
+                        let decoded = hex::decode(existing_hex).map_err(|e| {
+                            ArcMintError::RegistryError(format!(
+                                "invalid theta_u hex in DB: {e}"
+                            ))
+                        })?;
+                        if decoded.len() != 32 {
+                            return Err::<_, crate::error::ArcMintError>(
+                                ArcMintError::RegistryError(
+                                    "invalid theta_u length in DB".to_string(),
+                                ),
+                            );
+                        }
+                        let mut arr = [0u8; 32];
+                        arr.copy_from_slice(&decoded);
+                        arr
+                    } else {
+                        *theta_u
+                    };
+
+                    if existing_challenge_2.is_none() || existing_theta_hex.is_none() {
+                        sqlx::query(
+                            "UPDATE spent_notes
+                              SET challenge_2 = ?1, theta_u = ?2, spent_at = ?3
+                              WHERE serial = ?4
+                                AND challenge_2 IS NULL",
+                        )
+                        .bind(&challenge_2_hex)
+                        .bind(&theta_hex)
+                        .bind(spent_at)
+                        .bind(&serial_hex)
+                        .execute(&mut *conn)
+                        .await?;
+                    }
+
+                    Ok((theta_bytes, challenge_1_bytes, challenge_2.to_vec()))
+                };
+
+                match process.await {
+                    Ok(result) => {
+                        sqlx::query("COMMIT").execute(&mut *conn).await?;
+                        Ok(Some(result))
+                    }
+                    Err(e) => {
+                        let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
+                        Err(e)
+                    }
+                }
+            }
+            None => {
+                let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
+                Err(ArcMintError::RegistryError(
+                    "cannot record second spend for unknown serial; first spend must be recorded first"
+                        .to_string(),
+                ))
+            }
         }
     }
 
@@ -260,6 +286,7 @@ pub fn compute_merkle_root(serials: &[SerialNumber]) -> [u8; 32] {
         .into_iter()
         .map(|bytes| {
             let mut hasher = Sha256::new();
+            hasher.update(b"arcmint:merkle:leaf:v1");
             hasher.update(bytes);
             let digest = hasher.finalize();
             let mut out = [0u8; 32];
@@ -280,6 +307,7 @@ pub fn compute_merkle_root(serials: &[SerialNumber]) -> [u8; 32] {
             };
 
             let mut hasher = Sha256::new();
+            hasher.update(b"arcmint:merkle:node:v1");
             hasher.update(left);
             hasher.update(right);
             let digest = hasher.finalize();
@@ -312,6 +340,7 @@ pub fn compute_state_commitment(
 
 pub fn commitment_hash(c: &MerkleCommitment) -> [u8; 32] {
     let mut hasher = Sha256::new();
+    hasher.update(b"arcmint:commitment:v1");
     hasher.update(c.issued_root);
     hasher.update(c.spent_root);
     hasher.update(c.slot.to_be_bytes());

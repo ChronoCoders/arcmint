@@ -76,8 +76,7 @@ impl LoadTestConfig {
             + self.double_spend_weight as u16;
         if total_weight != 100 {
             return Err(anyhow!(
-                "scenario weights must sum to 100, got {}",
-                total_weight
+                "scenario weights must sum to 100, got {total_weight}"
             ));
         }
         Ok(())

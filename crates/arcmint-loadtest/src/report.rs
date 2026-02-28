@@ -35,7 +35,7 @@ fn latency_slo(name: &str, stats: &LatencyStats, max_ms: u64) -> SloResult {
     } else {
         SloResult::Fail {
             metric: name.to_string(),
-            threshold: format!("p99 <= {}ms", max_ms),
+            threshold: format!("p99 <= {max_ms}ms"),
             actual: format!("p99 = {}ms", stats.p99_ms),
         }
     }
@@ -52,8 +52,8 @@ fn rate_slo(name: &str, failures: u64, successes: u64, max_rate: f64) -> SloResu
     } else {
         SloResult::Fail {
             metric: name.to_string(),
-            threshold: format!("rate <= {:.4}", max_rate),
-            actual: format!("rate = {:.4}", rate),
+            threshold: format!("rate <= {max_rate:.4}"),
+            actual: format!("rate = {rate:.4}"),
         }
     }
 }
@@ -116,7 +116,7 @@ pub fn evaluate_slos(config: &LoadTestConfig, metrics: &MetricsSnapshot) -> Vec<
 
 pub fn print_summary(report: &LoadTestReport) {
     let now = Utc::now().to_rfc3339();
-    println!("ArcMint load test report {}", now);
+    println!("ArcMint load test report {now}");
     println!("Run ID: {}", report.run_id);
     println!("Duration: {}s", report.duration_secs);
     println!();
@@ -128,7 +128,7 @@ pub fn print_summary(report: &LoadTestReport) {
         match slo {
             SloResult::Pass => {
                 let label = "PASS";
-                let colored = format!("\x1b[32m{}\x1b[0m", label);
+                let colored = format!("\x1b[32m{label}\x1b[0m");
                 println!("{:<32} {:<20} {:<20} {:<8}", "", "", "", colored);
             }
             SloResult::Fail {
@@ -137,11 +137,8 @@ pub fn print_summary(report: &LoadTestReport) {
                 actual,
             } => {
                 let label = "FAIL";
-                let colored = format!("\x1b[31m{}\x1b[0m", label);
-                println!(
-                    "{:<32} {:<20} {:<20} {:<8}",
-                    metric, threshold, actual, colored
-                );
+                let colored = format!("\x1b[31m{label}\x1b[0m");
+                println!("{metric:<32} {threshold:<20} {actual:<20} {colored:<8}");
             }
         }
     }

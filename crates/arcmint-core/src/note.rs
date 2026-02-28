@@ -2,7 +2,7 @@ use crate::crypto::{
     generators, pedersen_commit, random_scalar, random_serial, BlindingFactor, GroupElement,
     Scalar, SerialNumber,
 };
-use anyhow::{anyhow, Result};
+use crate::error::{ArcMintError, Result};
 use curve25519_dalek::scalar::Scalar as DalekScalar;
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -74,7 +74,9 @@ where
 {
     let max_bits = theta_u.len() * 8;
     if k > max_bits {
-        return Err(anyhow!("k exceeds number of bits in theta_u"));
+        return Err(ArcMintError::InvalidNote(
+            "k exceeds number of bits in theta_u".to_string(),
+        ));
     }
 
     let serial = random_serial(rng);
@@ -131,13 +133,15 @@ where
     })
 }
 
-pub fn note_hash(data: &NoteCommitmentData) -> [u8; 32] {
+pub fn note_hash(data: &NoteCommitmentData) -> Result<[u8; 32]> {
     let mut hasher = Sha256::new();
-    if let Ok(encoded) = serde_json::to_vec(data) {
-        hasher.update(&encoded);
-    }
+    hasher.update(b"arcmint:note:v1");
+    let encoded = serde_json::to_vec(data).map_err(|e| {
+        ArcMintError::InvalidNote(format!("failed to serialize note commitment data: {e}"))
+    })?;
+    hasher.update(&encoded);
     let digest = hasher.finalize();
     let mut out = [0u8; 32];
     out.copy_from_slice(&digest);
-    out
+    Ok(out)
 }

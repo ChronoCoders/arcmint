@@ -37,3 +37,7 @@ base64 = { workspace = true }
 prometheus = { workspace = true }
 lazy_static = { workspace = true }
 bitcoin = { version = "0.31", features = ["serde"] }
+
+[features]
+default = []
+dev-keygen = []

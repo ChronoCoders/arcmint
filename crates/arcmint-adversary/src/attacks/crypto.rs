@@ -438,7 +438,7 @@ pub async fn attack_forged_signature(client: &AdversaryClient, config: &CliConfi
             success = true;
         }
 
-        let observed = format!("initiate status={} body={}", status, body_text);
+        let observed = format!("initiate status={status} body={body_text}");
 
         Ok::<(bool, Option<u16>, Option<String>, String), anyhow::Error>((
             success,
@@ -510,7 +510,7 @@ pub async fn attack_wrong_commitment_opening(
 
         let success = !body.accepted;
         let body_text = serde_json::to_string(&body)?;
-        let observed = format!("complete status={} body={}", status, body_text);
+        let observed = format!("complete status={status} body={body_text}");
 
         Ok::<(bool, Option<u16>, Option<String>, String), anyhow::Error>((
             success,
@@ -579,7 +579,7 @@ pub async fn attack_challenge_precomputation(
 
         let success = !body.accepted;
         let body_text = serde_json::to_string(&body)?;
-        let observed = format!("complete status={} body={}", status, body_text);
+        let observed = format!("complete status={status} body={body_text}");
 
         Ok::<(bool, Option<u16>, Option<String>, String), anyhow::Error>((
             success,

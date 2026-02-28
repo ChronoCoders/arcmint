@@ -151,7 +151,7 @@ pub async fn attack_malformed_note_missing_pairs(
 
         let success = status == 400 || status >= 400;
 
-        let observed = format!("status={} body={}", status, body);
+        let observed = format!("status={status} body={body}");
 
         Ok::<(bool, Option<u16>, Option<String>, String), anyhow::Error>((
             success,
@@ -217,7 +217,7 @@ pub async fn attack_malformed_note_wrong_denomination(
             success = true;
         }
 
-        let observed = format!("status={} body={}", status, body_text);
+        let observed = format!("status={status} body={body_text}");
 
         Ok::<(bool, Option<u16>, Option<String>, String), anyhow::Error>((
             success,
@@ -288,7 +288,7 @@ pub async fn attack_registry_bypass_skip_issued_check(
 
         let success = status == 404 || status == 409 || status >= 400;
 
-        let observed = format!("status={} body={}", status, body_text);
+        let observed = format!("status={status} body={body_text}");
 
         Ok::<(bool, Option<u16>, Option<String>, String), anyhow::Error>((
             success,
@@ -379,7 +379,7 @@ pub async fn attack_expired_note(client: &AdversaryClient, config: &CliConfig) -
             (status == 404 || status >= 400, text)
         };
 
-        let observed = format!("status={} body={}", status, body_text);
+        let observed = format!("status={status} body={body_text}");
 
         Ok::<(bool, Option<u16>, Option<String>, String), anyhow::Error>((
             success,
@@ -488,7 +488,7 @@ pub async fn attack_flood_issuance(client: &AdversaryClient, config: &CliConfig)
         let success = triggered_at.is_some() && triggered_at.unwrap() < 20;
 
         let observed = if let Some(n) = triggered_at {
-            format!("rate limit triggered at attempt {}", n)
+            format!("rate limit triggered at attempt {n}")
         } else {
             "no rate limit triggered within 20 attempts".to_string()
         };
@@ -540,7 +540,7 @@ pub async fn attack_signer_direct_access(
         let mut details = Vec::new();
 
         for url in &config.signer_urls {
-            let commit_url = format!("{}/round1/commit", url);
+            let commit_url = format!("{url}/round1/commit");
             let resp = http
                 .post(&commit_url)
                 .json(&serde_json::json!({}))
@@ -555,10 +555,10 @@ pub async fn attack_signer_direct_access(
                     if !rejected {
                         all_rejected = false;
                     }
-                    details.push(format!("{} -> HTTP {}", commit_url, status));
+                    details.push(format!("{commit_url} -> HTTP {status}"));
                 }
                 Err(e) => {
-                    details.push(format!("{} -> transport error: {}", commit_url, e));
+                    details.push(format!("{commit_url} -> transport error: {e}"));
                 }
             }
         }
@@ -701,7 +701,7 @@ pub async fn attack_malformed_issuance_reveal(
 
         let success = status >= 400;
 
-        let observed = format!("status={} body={}", status, body_text);
+        let observed = format!("status={status} body={body_text}");
 
         Ok::<(bool, Option<u16>, Option<String>, String), anyhow::Error>((
             success,

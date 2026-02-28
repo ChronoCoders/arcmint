@@ -6,6 +6,10 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+[features]
+default = []
+dev-keygen = ["arcmint-core/dev-keygen"]
+
 [dependencies]
  tokio = { workspace = true }
  axum = { workspace = true }

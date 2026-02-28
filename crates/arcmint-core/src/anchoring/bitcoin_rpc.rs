@@ -112,7 +112,7 @@ impl BitcoinRpcClient {
         };
         let credentials = format!("{}:{}", config.user, config.password);
         let encoded = BASE64_STANDARD.encode(credentials.as_bytes());
-        let auth_header = format!("Basic {}", encoded);
+        let auth_header = format!("Basic {encoded}");
         Ok(Self {
             client,
             url: base,
@@ -140,7 +140,7 @@ impl BitcoinRpcClient {
         let text = response.text().await?;
         debug!("bitcoin rpc {} status={} body={}", method, status, text);
         if !status.is_success() {
-            return Err(anyhow!("bitcoin rpc http error: {} {}", status, text));
+            return Err(anyhow!("bitcoin rpc http error: {status} {text}"));
         }
         let parsed: RpcResponse<T> = serde_json::from_str(&text)?;
         if let Some(err) = parsed.error {
@@ -148,7 +148,7 @@ impl BitcoinRpcClient {
         }
         match parsed.result {
             Some(result) => Ok(result),
-            None => Err(anyhow!("bitcoin rpc missing result for method {}", method)),
+            None => Err(anyhow!("bitcoin rpc missing result for method {method}")),
         }
     }
 
@@ -244,7 +244,7 @@ impl BitcoinRpcClient {
             status, text
         );
         if !status.is_success() {
-            return Err(anyhow!("bitcoin rpc http error: {} {}", status, text));
+            return Err(anyhow!("bitcoin rpc http error: {status} {text}"));
         }
         let parsed: RpcResponse<MempoolEntry> = serde_json::from_str(&text)?;
         if let Some(err) = parsed.error {

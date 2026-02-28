@@ -406,8 +406,8 @@ async fn register(
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
-    let token = compute_gateway_token(&state.gateway_secret);
-    let _ = verify_token(&state.gateway_secret, &token);
+    let token = compute_gateway_token(&state.gateway_secret, &theta_hex);
+    let _ = verify_token(&state.gateway_secret, &token, &theta_hex);
 
     let response = RegistrationResponse {
         gateway_token: token,
@@ -512,7 +512,7 @@ async fn token_refresh(
         return StatusCode::NOT_FOUND.into_response();
     }
 
-    let token = compute_gateway_token(&state.gateway_secret);
+    let token = compute_gateway_token(&state.gateway_secret, &theta_hex);
     let response = RegistrationResponse {
         gateway_token: token,
     };
@@ -1021,15 +1021,16 @@ async fn validate_merchant_key(
     next.run(req).await
 }
 
-fn compute_gateway_token(secret: &str) -> String {
+fn compute_gateway_token(secret: &str, theta_u: &str) -> String {
     let mut mac =
         HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
-    mac.update(b"arcmint-gateway-token");
+    mac.update(b"arcmint-gateway-token:");
+    mac.update(theta_u.as_bytes());
     let bytes = mac.finalize().into_bytes();
     hex::encode(bytes)
 }
 
-fn verify_token(secret: &str, token: &str) -> bool {
+fn verify_token(secret: &str, token: &str, theta_u: &str) -> bool {
     let provided = match hex::decode(token) {
         Ok(b) => b,
         Err(_) => return false,
@@ -1039,7 +1040,8 @@ fn verify_token(secret: &str, token: &str) -> bool {
         Ok(m) => m,
         Err(_) => return false,
     };
-    mac.update(b"arcmint-gateway-token");
+    mac.update(b"arcmint-gateway-token:");
+    mac.update(theta_u.as_bytes());
     mac.verify_slice(&provided).is_ok()
 }
 
@@ -1048,7 +1050,12 @@ fn authorize(secret: &str, headers: &HeaderMap) -> bool {
         if let Ok(s) = value.to_str() {
             let prefix = "Bearer ";
             if let Some(token) = s.strip_prefix(prefix) {
-                return token == secret;
+                let token_bytes = token.as_bytes();
+                let secret_bytes = secret.as_bytes();
+                if token_bytes.len() != secret_bytes.len() {
+                    return false;
+                }
+                return token_bytes.ct_eq(secret_bytes).unwrap_u8() == 1;
             }
         }
     }
@@ -1061,7 +1068,12 @@ fn authorize_operator(headers: &HeaderMap) -> bool {
             let prefix = "Bearer ";
             if let Some(token) = s.strip_prefix(prefix) {
                 if let Ok(expected) = env::var("OPERATOR_SECRET") {
-                    return token == expected;
+                    let token_bytes = token.as_bytes();
+                    let expected_bytes = expected.as_bytes();
+                    if token_bytes.len() != expected_bytes.len() {
+                        return false;
+                    }
+                    return token_bytes.ct_eq(expected_bytes).unwrap_u8() == 1;
                 }
             }
         }

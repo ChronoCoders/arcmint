@@ -24,7 +24,7 @@ use std::path::Path as FsPath;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Clone)]
 struct MerchantState {
@@ -83,7 +83,7 @@ async fn main() {
     let db_url = if db_path.starts_with("sqlite:") {
         db_path
     } else {
-        format!("sqlite://{}", db_path)
+        format!("sqlite://{db_path}")
     };
 
     let coordinator_url = env::var("COORDINATOR_URL").expect("COORDINATOR_URL env var must be set");
@@ -139,12 +139,82 @@ async fn main() {
         .with_state(shared);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    info!("starting merchant on {addr}");
 
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .expect("failed to bind TCP listener");
-    axum::serve(listener, app).await.expect("server error");
+    let tls_cert_file = env::var("TLS_CERT_FILE").ok();
+    let tls_key_file = env::var("TLS_KEY_FILE").ok();
+
+    if let (Some(cert_file), Some(key_file)) = (tls_cert_file, tls_key_file) {
+        use arcmint_core::tls::load_tls_server_config;
+        use hyper::body::Incoming;
+        use hyper::Request as HyperRequest;
+        use hyper_util::rt::{TokioExecutor, TokioIo};
+        use hyper_util::service::TowerToHyperService;
+        use tokio_rustls::TlsAcceptor;
+        use tower::ServiceExt;
+        use tracing::error as tls_error;
+
+        info!("starting merchant on {addr} (TLS enabled)");
+
+        let tls_config =
+            load_tls_server_config(FsPath::new(&cert_file), FsPath::new(&key_file), None)
+                .expect("failed to build merchant TLS server config");
+        let tls_acceptor = TlsAcceptor::from(Arc::new(tls_config));
+
+        let listener = tokio::net::TcpListener::bind(addr)
+            .await
+            .expect("failed to bind TCP listener");
+
+        loop {
+            let (stream, peer_addr) = listener
+                .accept()
+                .await
+                .expect("failed to accept connection");
+            let tls_acceptor = tls_acceptor.clone();
+            let app = app.clone();
+
+            tokio::spawn(async move {
+                let tls_stream = match tls_acceptor.accept(stream).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tls_error!("TLS handshake error from {peer_addr}: {e}");
+                        return;
+                    }
+                };
+
+                let io = TokioIo::new(tls_stream);
+
+                let tower_service = tower::service_fn(move |req: HyperRequest<Incoming>| {
+                    let app = app.clone();
+                    async move { app.clone().oneshot(req).await }
+                });
+
+                let service = TowerToHyperService::new(tower_service);
+
+                if let Err(err) = hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
+                    .serve_connection(io, service)
+                    .await
+                {
+                    tls_error!("error while serving TLS connection from {peer_addr}: {err}");
+                }
+            });
+        }
+    } else {
+        let insecure = env::var("MERCHANT_INSECURE")
+            .map(|v| v == "true" || v == "1")
+            .unwrap_or(false);
+
+        if !insecure {
+            panic!("TLS_CERT_FILE and TLS_KEY_FILE must be set. To run without TLS, set MERCHANT_INSECURE=true");
+        }
+
+        warn!("RUNNING WITHOUT TLS — INSECURE MODE — NOT FOR PRODUCTION");
+        info!("starting merchant on {addr} (plaintext — insecure mode)");
+
+        let listener = tokio::net::TcpListener::bind(addr)
+            .await
+            .expect("failed to bind TCP listener");
+        axum::serve(listener, app).await.expect("server error");
+    }
 }
 
 async fn init_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {

@@ -1,3 +1,11 @@
+#[cfg(not(feature = "dev-keygen"))]
+compile_error!(
+    "The keygen binary requires the `dev-keygen` feature. \
+     Build with `--features dev-keygen` to enable trusted dealer key generation. \
+     This is intentionally gated to prevent accidental use in production."
+);
+
+#[cfg(feature = "dev-keygen")]
 use arcmint_core::frost_ops::distribute_dev_keys;
 use clap::Parser;
 use rand::rngs::OsRng;
