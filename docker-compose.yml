@@ -90,7 +90,7 @@ services:
       - "${SIGNER2_PORT:-7002}:7002"
       - "9002:7002"
     healthcheck:
-      test: ["CMD", "curl", "-k", "--cacert", "/certs/ca_cert.pem", "-f", "https://localhost:7002/health"]
+      test: ["CMD", "curl", "-k", "--cacert", "/certs/ca_cert.pem", "--cert", "/certs/arcmint-coordinator_cert.pem", "--key", "/certs/arcmint-coordinator_key.pem", "-f", "https://localhost:7002/health"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -181,7 +181,7 @@ services:
       - "${COORDINATOR_PORT:-7000}:7000"
       - "9004:7000"
     healthcheck:
-      test: ["CMD", "curl", "-k", "-f", "https://localhost:7000/health"]
+      test: ["CMD", "curl", "-k", "--cert", "/certs/arcmint-coordinator_cert.pem", "--key", "/certs/arcmint-coordinator_key.pem", "-f", "https://localhost:7000/health"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -262,7 +262,7 @@ services:
       - "${MERCHANT_PORT:-7003}:7003"
       - "9006:7003"
     healthcheck:
-      test: ["CMD", "curl", "--cacert", "/certs/ca_cert.pem", "-f", "https://localhost:7003/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:7003/health"]
       interval: 5s
       timeout: 3s
       retries: 10
