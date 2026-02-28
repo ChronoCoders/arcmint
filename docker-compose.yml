@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # DEV ONLY: Uses trusted dealer key generation (generate_with_dealer).
   # Production deployments MUST use the DKG ceremony (dkg_coordinator + dkg_participant).
