@@ -418,9 +418,11 @@ services:
         sleep 5
         lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon newaddress p2wkh > /lnd-init/address.txt
         ADDR=$$(grep "address" /lnd-init/address.txt | cut -d'"' -f4)
-        echo "Mining to address: $$ADDR"
-        # Use curl because bitcoin-cli is not available in lnd image
-        curl --user arcmint:arcmintpass --data-binary "{\"jsonrpc\": \"1.0\", \"id\": \"curltest\", \"method\": \"generatetoaddress\", \"params\": [101, \"$$ADDR\"]}" -H 'content-type: text/plain;' http://bitcoind:18443/
+        echo "Funding LND wallet at: $$ADDR"
+        # Send 1 BTC directly from bitcoind wallet to LND
+        curl --user arcmint:arcmintpass --data-binary "{\"jsonrpc\":\"1.0\",\"id\":\"fund\",\"method\":\"sendtoaddress\",\"params\":[\"$$ADDR\",1.0]}" -H 'content-type: text/plain;' http://bitcoind:18443/
+        # Mine 1 block to confirm
+        curl --user arcmint:arcmintpass --data-binary "{\"jsonrpc\":\"1.0\",\"id\":\"mine\",\"method\":\"generatetoaddress\",\"params\":[1,\"$$ADDR\"]}" -H 'content-type: text/plain;' http://bitcoind:18443/
         sleep 3
         echo "LND init complete"
 
