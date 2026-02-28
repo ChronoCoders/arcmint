@@ -380,7 +380,7 @@ services:
         set -e
         # Wait for lnd to be ready (although depends_on helps)
         sleep 5
-        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/lnd_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon newaddress p2wkh > /lnd-init/address.txt
+        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon newaddress p2wkh > /lnd-init/address.txt
         ADDR=$$(grep "address" /lnd-init/address.txt | cut -d'"' -f4)
         echo "Mining to address: $$ADDR"
         # Use curl because bitcoin-cli is not available in lnd image
