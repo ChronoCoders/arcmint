@@ -419,8 +419,21 @@ services:
         lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon newaddress p2wkh > /lnd-init/address.txt
         ADDR=$$(grep "address" /lnd-init/address.txt | cut -d'"' -f4)
         echo "Funding LND wallet at: $$ADDR"
-        # Send 1 BTC directly from bitcoind wallet to LND
-        curl --user arcmint:arcmintpass --data-binary "{\"jsonrpc\":\"1.0\",\"id\":\"fund\",\"method\":\"sendtoaddress\",\"params\":[\"$$ADDR\",1.0]}" -H 'content-type: text/plain;' http://bitcoind:18443/
+        
+        # Loop until funding succeeds (wallet must be created and have funds)
+        while :; do
+            # Try to send 1 BTC.
+            # We grep for "error":null to confirm success.
+            OUTPUT=$$(curl -s --user arcmint:arcmintpass --data-binary "{\"jsonrpc\":\"1.0\",\"id\":\"fund\",\"method\":\"sendtoaddress\",\"params\":[\"$$ADDR\",1.0]}" -H 'content-type: text/plain;' http://bitcoind:18443/)
+            echo "Attempting funding: $$OUTPUT"
+            if echo "$$OUTPUT" | grep -q '"error":null'; then
+                 echo "Funding successful."
+                 break
+            fi
+            echo "Funding failed (waiting for wallet/funds)... sleeping 5s"
+            sleep 5
+        done
+
         # Mine 1 block to confirm
         curl --user arcmint:arcmintpass --data-binary "{\"jsonrpc\":\"1.0\",\"id\":\"mine\",\"method\":\"generatetoaddress\",\"params\":[1,\"$$ADDR\"]}" -H 'content-type: text/plain;' http://bitcoind:18443/
         sleep 3
@@ -475,9 +488,6 @@ services:
   miner:
     image: lncm/bitcoind:v26.0
     restart: unless-stopped
-    depends_on:
-      lnd-init:
-        condition: service_completed_successfully
     entrypoint:
       - /bin/sh
       - -c
@@ -487,6 +497,14 @@ services:
         sleep 5
         bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass createwallet miner || true
         ADDR=$$(bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass getnewaddress)
+        
+        # Burst mine if needed to mature coins (coinbase requires 100 confirmations)
+        HEIGHT=$$(bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass getblockcount)
+        if [ "$$HEIGHT" -lt 101 ]; then
+           echo "Burst mining 101 blocks to mature coinbase..."
+           bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 101 $$ADDR
+        fi
+
         while true; do
           bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 1 $$ADDR
           sleep 10
