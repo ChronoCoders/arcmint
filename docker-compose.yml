@@ -20,6 +20,7 @@ services:
          certgen server --output-dir /certs --common-name coordinator --san-dns coordinator --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
          certgen server --output-dir /certs --common-name gateway --san-dns gateway --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
          certgen server --output-dir /certs --common-name lnd --san-dns lnd --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
+         certgen server --output-dir /certs --common-name lnd-2 --san-dns lnd-2 --san-ip 127.0.0.1 --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
          certgen client --output-dir /certs --common-name arcmint-coordinator --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem; \
          certgen client --output-dir /certs --common-name arcmint-gateway --ca-cert /certs/ca_cert.pem --ca-key /certs/ca_key.pem",
       ]
@@ -175,6 +176,8 @@ services:
       certgen:
         condition: service_completed_successfully
       lnd-init:
+        condition: service_completed_successfully
+      lnd-channel-setup:
         condition: service_completed_successfully
     ports:
       - "${COORDINATOR_PORT:-7000}:7000"
@@ -362,6 +365,40 @@ services:
     ports:
       - "8080:8080"
 
+  lnd-2:
+    image: lightninglabs/lnd:v0.17.4-beta
+    restart: unless-stopped
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+      certgen:
+        condition: service_completed_successfully
+    volumes:
+      - lnd-2-data:/root/.lnd
+      - tls-certs:/certs:ro
+    environment:
+      - BITCOIN_NETWORK=regtest
+    command: >
+      --bitcoin.active
+      --bitcoin.regtest
+      --bitcoin.node=bitcoind
+      --bitcoind.rpchost=bitcoind:18443
+      --bitcoind.rpcuser=arcmint
+      --bitcoind.rpcpass=arcmintpass
+      --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
+      --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+      --rpclisten=0.0.0.0:10009
+      --restlisten=0.0.0.0:8080
+      --noseedbackup
+      --debuglevel=info
+      --tlscertpath=/certs/lnd-2_cert.pem
+      --tlskeypath=/certs/lnd-2_key.pem
+    healthcheck:
+      test: ["CMD", "lncli", "--network=regtest", "--rpcserver=lnd-2:10009", "--tlscertpath=/certs/lnd-2_cert.pem", "getinfo"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
   lnd-init:
     image: lightninglabs/lnd:v0.17.4-beta
     restart: "no"
@@ -386,6 +423,35 @@ services:
         curl --user arcmint:arcmintpass --data-binary "{\"jsonrpc\": \"1.0\", \"id\": \"curltest\", \"method\": \"generatetoaddress\", \"params\": [101, \"$$ADDR\"]}" -H 'content-type: text/plain;' http://bitcoind:18443/
         sleep 3
         echo "LND init complete"
+
+  lnd-channel-setup:
+    image: lightninglabs/lnd:v0.17.4-beta
+    restart: "no"
+    depends_on:
+      lnd:
+        condition: service_healthy
+      lnd-2:
+        condition: service_healthy
+      lnd-init:
+        condition: service_completed_successfully
+    volumes:
+      - lnd-data:/root/.lnd
+      - tls-certs:/certs:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        # Open channel from lnd to lnd-2
+        echo "Opening channel to lnd-2..."
+        lncli --network=regtest --rpcserver=lnd:10009 --tlscertpath=/certs/ca_cert.pem --macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon openchannel --node_key=03b788a5da56964121274daaf368716234c052a8c9f7c3a215fca1292667fad581 --local_amt=10000000 --connect=lnd-2:10009
+        
+        # Mine 6 blocks to confirm the channel
+        echo "Mining 6 blocks to confirm channel..."
+        # Use curl because bitcoin-cli is not available in lnd image
+        curl --user arcmint:arcmintpass --data-binary "{\"jsonrpc\": \"1.0\", \"id\": \"confirm_channel\", \"method\": \"generatetoaddress\", \"params\": [6, \"bcrt1q3sck5rg043qnz98mtfx74dcctv7sukkkl9e35h\"]}" -H 'content-type: text/plain;' http://bitcoind:18443/
+        
+        echo "LND channel setup complete"
 
   miner:
     image: lncm/bitcoind:v26.0
@@ -473,6 +539,7 @@ volumes:
   tls-certs:
   bitcoind-data:
   lnd-data:
+  lnd-2-data:
   lnd-init:
   dkg-output:
   prometheus-data:
