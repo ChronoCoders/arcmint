@@ -462,7 +462,6 @@ services:
     command: >
       arcmint-loadtest
       run-all
-      --output /output/report.json
 
 volumes:
   signer1-db:
