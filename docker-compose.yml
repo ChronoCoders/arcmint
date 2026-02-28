@@ -401,6 +401,7 @@ services:
         set -e
         # Wait for bitcoind to be ready (although depends_on helps, explicit wait is safer)
         sleep 5
+        bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass createwallet miner || true
         ADDR=$$(bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass getnewaddress)
         while true; do
           bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=arcmint -rpcpassword=arcmintpass generatetoaddress 1 $$ADDR
