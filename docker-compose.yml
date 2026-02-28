@@ -541,6 +541,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      network: host
       args:
         SERVICE_BIN: arcmint-loadtest
     depends_on:
