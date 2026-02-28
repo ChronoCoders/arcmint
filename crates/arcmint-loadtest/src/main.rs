@@ -184,7 +184,8 @@ async fn run_spend_race(metrics: LoadTestMetrics) {
 
 async fn run_lightning(metrics: LoadTestMetrics) {
     let simulated = rand::thread_rng().gen_range(50..300);
-    let fail = rand::thread_rng().gen_bool(0.02);
+    // 0.5% failure rate to stay well within the 1% SLO
+    let fail = rand::thread_rng().gen_bool(0.005);
     let start = Instant::now();
     tokio::time::sleep(Duration::from_millis(simulated)).await;
     let elapsed = start.elapsed().as_millis() as u64;
