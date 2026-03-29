@@ -22,6 +22,7 @@ use arcmint_core::note::{note_hash, NoteCommitmentData, SignedNote};
 use arcmint_core::protocol::{
     AuditResponse, IssuanceChallenge, IssuanceRequest, IssuanceResponse, IssuanceReveal,
     MintInCommitment, MintInRequest, SpendChallenge, SpendProof, SpendRequest, SpendResponse,
+    CURRENT_PROTOCOL_VERSION,
 };
 use arcmint_core::recovery::{challenges_differ, recover_theta_u};
 use arcmint_core::registry::{commitment_hash, MerkleCommitment};
@@ -43,8 +44,9 @@ use hyper::Request as HyperRequest;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::service::TowerToHyperService;
 use rand::prelude::SliceRandom;
-use rand::rngs::ThreadRng;
-use rand::{thread_rng, Rng};
+use rand::rngs::{OsRng, ThreadRng};
+use rand::{thread_rng, Rng, RngCore};
+use subtle::ConstantTimeEq;
 use reqwest::Client;
 use sha2::{Digest, Sha256};
 use sqlx::sqlite::SqlitePoolOptions;
@@ -93,6 +95,7 @@ struct CoordinatorState {
     anchor_change_address: Option<String>,
     anchor_interval_secs: u64,
     spend_challenges: HashMap<SerialNumber, Vec<u8>>,
+    spend_nonces: HashMap<SerialNumber, [u8; 32]>,
     spend_notes: HashMap<SerialNumber, NoteCommitmentData>,
     spend_proofs: HashMap<SerialNumber, (SpendProof, Vec<u8>)>,
     session_ttl_secs: u64,
@@ -106,7 +109,7 @@ struct CoordinatorState {
 struct AppState {
     coordinator: Arc<Mutex<CoordinatorState>>,
     gateway_cn: String,
-    operator_secret: String,
+    operator_secrets: Vec<String>,
 }
 
 struct SpendVerifyTimer {
@@ -191,6 +194,7 @@ struct SpendVerifyRequest {
     proof: SpendProof,
     challenge_bits: Option<Vec<u8>>,
     note: Option<SignedNote>,
+    merchant_nonce: Option<[u8; 32]>,
 }
 
 #[derive(serde::Deserialize)]
@@ -251,12 +255,23 @@ async fn main() {
         env::var("INTERNAL_CA_FILE").expect("INTERNAL_CA_FILE env var must be set");
 
     let gateway_cn = env::var("GATEWAY_CN").unwrap_or_else(|_| "arcmint-gateway".to_string());
-    let operator_secret =
-        env::var("OPERATOR_SECRET").unwrap_or_else(|_| coordinator_secret.clone());
+    let operator_secrets: Vec<String> = env::var("OPERATOR_SECRET")
+        .expect("OPERATOR_SECRET env var must be set")
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if operator_secrets.is_empty() {
+        panic!("OPERATOR_SECRET must contain at least one secret");
+    }
+    validate_secret("COORDINATOR_SECRET", &coordinator_secret);
+    for (i, s) in operator_secrets.iter().enumerate() {
+        validate_secret(&format!("OPERATOR_SECRET[{i}]"), s);
+    }
 
     let bitcoin_rpc_client = if let Ok(url) = env::var("BITCOIN_RPC_URL") {
-        let user = env::var("BITCOIN_RPC_USER").unwrap_or_else(|_| "arcmint".to_string());
-        let password = env::var("BITCOIN_RPC_PASS").unwrap_or_else(|_| "password".to_string());
+        let user = env::var("BITCOIN_RPC_USER").expect("BITCOIN_RPC_USER env var must be set");
+        let password = env::var("BITCOIN_RPC_PASS").expect("BITCOIN_RPC_PASS env var must be set");
         let wallet_name = env::var("BITCOIN_WALLET_NAME").unwrap_or_else(|_| "anchor".to_string());
 
         let config = BitcoinRpcConfig {
@@ -407,6 +422,7 @@ async fn main() {
         anchor_change_address,
         anchor_interval_secs,
         spend_challenges: HashMap::new(),
+        spend_nonces: HashMap::new(),
         spend_notes: HashMap::new(),
         spend_proofs: HashMap::new(),
         session_ttl_secs,
@@ -419,7 +435,7 @@ async fn main() {
     let shared_state = AppState {
         coordinator: Arc::new(Mutex::new(state)),
         gateway_cn,
-        operator_secret,
+        operator_secrets,
     };
 
     let settlement_state_for_handler = shared_state.coordinator.clone();
@@ -488,7 +504,10 @@ async fn main() {
             "/mint/out/begin",
             post(mint_out_begin).route_layer(gateway_auth_layer.clone()),
         )
-        .route("/metrics", get(metrics_handler))
+        .route(
+            "/metrics",
+            get(metrics_handler).route_layer(operator_auth_layer.clone()),
+        )
         .route(
             "/anchors",
             get(anchors).route_layer(operator_auth_layer.clone()),
@@ -512,7 +531,10 @@ async fn main() {
     .expect("failed to build coordinator TLS server config");
     let tls_acceptor = TlsAcceptor::from(Arc::new(tls_server_config));
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let bind_host = env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let addr: SocketAddr = format!("{bind_host}:{port}")
+        .parse()
+        .expect("invalid BIND_ADDR");
     info!("starting coordinator on {addr} (mTLS enabled)");
 
     let listener = tokio::net::TcpListener::bind(addr)
@@ -607,6 +629,10 @@ async fn issue_begin(
     State(state): State<AppState>,
     Json(req): Json<IssuanceRequest>,
 ) -> impl IntoResponse {
+    if let Err(e) = check_protocol_version(req.protocol_version) {
+        return e.into_response();
+    }
+
     const MAX_CANDIDATES: usize = 512;
 
     if req.blinded_candidates.is_empty() || req.blinded_candidates.len() > MAX_CANDIDATES {
@@ -625,13 +651,22 @@ async fn issue_begin(
         (closed_index, open_indices)
     };
 
-    let closed_candidate = req.blinded_candidates[closed_index].clone();
+    let mut closed_candidate = req.blinded_candidates[closed_index].clone();
     if closed_candidate.denomination == 0 {
         ISSUANCE_REQUESTS_TOTAL
             .with_label_values(&["rejected"])
             .inc();
         return StatusCode::BAD_REQUEST.into_response();
     }
+
+    // Coordinator stamps the note with issuance and expiry times before signing.
+    // The 90-day window is enforced here; clients cannot extend it.
+    let now_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    closed_candidate.issued_at = now_secs;
+    closed_candidate.expires_at = now_secs + 90 * 24 * 3600;
 
     let message = match note_hash(&closed_candidate) {
         Ok(m) => m,
@@ -694,8 +729,12 @@ async fn issue_begin(
         }
     }
 
+    // Store stamped closed candidate in session so issue_reveal signs the version with timestamps.
+    let mut stamped_candidates = req.blinded_candidates;
+    stamped_candidates[closed_index] = closed_candidate;
+
     let session = CoordinatorSession {
-        candidates: req.blinded_candidates,
+        candidates: stamped_candidates,
         open_indices: open_indices.clone(),
         closed_index,
         commitments,
@@ -711,6 +750,7 @@ async fn issue_begin(
     }
 
     let challenge = IssuanceChallenge {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         session_id,
         open_indices,
     };
@@ -726,6 +766,10 @@ async fn issue_reveal(
     State(state): State<AppState>,
     Json(req): Json<IssuanceReveal>,
 ) -> impl IntoResponse {
+    if let Err(e) = check_protocol_version(req.protocol_version) {
+        return e.into_response();
+    }
+
     info!(
         "issue_reveal start session_id={} revealed_count={}",
         req.session_id,
@@ -917,7 +961,7 @@ async fn issue_reveal(
     }
 
     info!("issue_reveal registry writes complete");
-    let response = IssuanceResponse { signed_note };
+    let response = IssuanceResponse { protocol_version: CURRENT_PROTOCOL_VERSION, signed_note };
 
     info!("issue_reveal completed successfully");
     ISSUANCE_REQUESTS_TOTAL
@@ -931,6 +975,10 @@ async fn mint_in_begin(
     State(state): State<AppState>,
     Json(req): Json<MintInRequest>,
 ) -> impl IntoResponse {
+    if let Err(e) = check_protocol_version(req.protocol_version) {
+        return e.into_response();
+    }
+
     if req.denomination_msat == 0 {
         MINT_IN_TOTAL.with_label_values(&["rejected"]).inc();
         return StatusCode::BAD_REQUEST.into_response();
@@ -1003,6 +1051,7 @@ async fn mint_in_begin(
     }
 
     let response = MintInCommitment {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         mint_commitment: mint_commitment.to_vec(),
         session_id,
         payment_request: invoice.payment_request,
@@ -1261,6 +1310,10 @@ async fn spend_challenge(
     State(state): State<AppState>,
     Json(req): Json<SpendRequest>,
 ) -> impl IntoResponse {
+    if let Err(e) = check_protocol_version(req.protocol_version) {
+        return e.into_response();
+    }
+
     let signed = req.note;
     let data = signed.data.clone();
 
@@ -1275,11 +1328,26 @@ async fn spend_challenge(
 
     if let Err(e) = verify_frost_signature(&data, &signed.signature, &public_key_package) {
         error!("FROST signature verification failed: {e:?}");
-        let response = SpendResponse {
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
             accepted: false,
             reason: Some("invalid signature".to_string()),
         };
         return (StatusCode::OK, Json(response)).into_response();
+    }
+
+    if data.expires_at > 0 {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        if now > data.expires_at {
+            let response = SpendResponse {
+                protocol_version: CURRENT_PROTOCOL_VERSION,
+                accepted: false,
+                reason: Some("note expired".to_string()),
+            };
+            return (StatusCode::OK, Json(response)).into_response();
+        }
     }
 
     let serial_hex = hex::encode(data.serial.0);
@@ -1310,7 +1378,7 @@ async fn spend_challenge(
             Ok(_) => {}
             Err(e) => {
                 error!("issued registry check error: {e}");
-                let response = SpendResponse {
+                let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                     accepted: false,
                     reason: Some("upstream registry error".to_string()),
                 };
@@ -1320,7 +1388,7 @@ async fn spend_challenge(
     }
 
     if issued_confirmations * 2 <= total_signers {
-        let response = SpendResponse {
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
             accepted: false,
             reason: Some("note not issued by majority".to_string()),
         };
@@ -1345,7 +1413,7 @@ async fn spend_challenge(
     for res in spent_results {
         match res {
             Ok(resp) if resp.status().is_success() => {
-                let response = SpendResponse {
+                let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                     accepted: false,
                     reason: Some("note already spent".to_string()),
                 };
@@ -1354,7 +1422,7 @@ async fn spend_challenge(
             Ok(_) => {}
             Err(e) => {
                 error!("spent registry check error: {e}");
-                let response = SpendResponse {
+                let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                     accepted: false,
                     reason: Some("upstream registry error".to_string()),
                 };
@@ -1373,15 +1441,21 @@ async fn spend_challenge(
         }
         bits
     };
+    let mut merchant_nonce = [0u8; 32];
+    OsRng.fill_bytes(&mut merchant_nonce);
+
     {
         let mut guard = state.coordinator.lock().await;
         guard
             .spend_challenges
             .insert(data.serial, challenge_bits.clone());
+        guard.spend_nonces.insert(data.serial, merchant_nonce);
         guard.spend_notes.insert(data.serial, data.clone());
     }
 
     let response = SpendChallenge {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
+        merchant_nonce,
         challenge_bits: challenge_bits.clone(),
     };
 
@@ -1394,7 +1468,7 @@ async fn spend_verify(
 ) -> impl IntoResponse {
     let _timer = SpendVerifyTimer::new();
     if req.serial != req.proof.serial {
-        let response = SpendResponse {
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
             accepted: false,
             reason: Some("serial mismatch".to_string()),
         };
@@ -1412,10 +1486,31 @@ async fn spend_verify(
         let challenge_bits = if let Some(bits) = &req.challenge_bits {
             bits.clone()
         } else {
+            // Direct coordinator spend path — verify nonce matches what was issued
+            if let Some(req_nonce) = &req.merchant_nonce {
+                match guard.spend_nonces.get(&req.serial) {
+                    Some(stored) => {
+                        if req_nonce.ct_eq(stored.as_slice()).unwrap_u8() == 0 {
+                            let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
+                                accepted: false,
+                                reason: Some("invalid merchant nonce".to_string()),
+                            };
+                            return (StatusCode::OK, Json(response)).into_response();
+                        }
+                    }
+                    None => {
+                        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
+                            accepted: false,
+                            reason: Some("unknown spend challenge".to_string()),
+                        };
+                        return (StatusCode::OK, Json(response)).into_response();
+                    }
+                }
+            }
             match guard.spend_challenges.get(&req.serial) {
                 Some(c) => c.clone(),
                 None => {
-                    let response = SpendResponse {
+                    let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                         accepted: false,
                         reason: Some("unknown spend challenge".to_string()),
                     };
@@ -1430,7 +1525,7 @@ async fn spend_verify(
             match guard.spend_notes.get(&req.serial) {
                 Some(d) => d.clone(),
                 None => {
-                    let response = SpendResponse {
+                    let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                         accepted: false,
                         reason: Some("unknown note data".to_string()),
                     };
@@ -1448,7 +1543,7 @@ async fn spend_verify(
 
     if let Err(e) = verify_spend_proof(&note_data, &req.proof, &challenge_bits, &g, &h) {
         error!("spend proof verification failed: {e:?}");
-        let response = SpendResponse {
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
             accepted: false,
             reason: Some(format!("invalid spend proof: {e:?}")),
         };
@@ -1540,7 +1635,7 @@ async fn spend_verify(
                     "registry spend failed for signer {idx}: HTTP {}",
                     resp.status()
                 );
-                let response = SpendResponse {
+                let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                     accepted: false,
                     reason: Some("registry update failed".to_string()),
                 };
@@ -1548,7 +1643,7 @@ async fn spend_verify(
             }
             Err(e) => {
                 error!("registry spend request error for signer {idx}: {e}");
-                let response = SpendResponse {
+                let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                     accepted: false,
                     reason: Some("registry update failed".to_string()),
                 };
@@ -1557,7 +1652,7 @@ async fn spend_verify(
         }
     }
 
-    let response = SpendResponse {
+    let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
         accepted: true,
         reason: None,
     };
@@ -1573,7 +1668,7 @@ async fn mint_out_begin(
     let serial = req.serial;
     if req.payment_request.is_empty() {
         MINT_OUT_TOTAL.with_label_values(&["rejected"]).inc();
-        let response = SpendResponse {
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
             accepted: false,
             reason: Some("empty payment_request".to_string()),
         };
@@ -1617,7 +1712,7 @@ async fn mint_out_begin(
             Err(e) => {
                 error!("mint_out_begin issued registry check error: {e}");
                 MINT_OUT_TOTAL.with_label_values(&["failed"]).inc();
-                let response = SpendResponse {
+                let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                     accepted: false,
                     reason: Some("registry check failed".to_string()),
                 };
@@ -1628,7 +1723,7 @@ async fn mint_out_begin(
 
     if issued_confirmations * 2 <= total_signers {
         MINT_OUT_TOTAL.with_label_values(&["rejected"]).inc();
-        let response = SpendResponse {
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
             accepted: false,
             reason: Some("note not issued by majority".to_string()),
         };
@@ -1654,7 +1749,7 @@ async fn mint_out_begin(
         match res {
             Ok(resp) if resp.status().is_success() => {
                 MINT_OUT_TOTAL.with_label_values(&["rejected"]).inc();
-                let response = SpendResponse {
+                let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                     accepted: false,
                     reason: Some("note already spent".to_string()),
                 };
@@ -1664,7 +1759,7 @@ async fn mint_out_begin(
             Err(e) => {
                 error!("mint_out_begin spent registry check error: {e}");
                 MINT_OUT_TOTAL.with_label_values(&["failed"]).inc();
-                let response = SpendResponse {
+                let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                     accepted: false,
                     reason: Some("registry check failed".to_string()),
                 };
@@ -1685,7 +1780,7 @@ async fn mint_out_begin(
         Ok(p) => p,
         Err(e) => {
             MINT_OUT_TOTAL.with_label_values(&["failed"]).inc();
-            let response = SpendResponse {
+            let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                 accepted: false,
                 reason: Some(format!("payment failed: {e}")),
             };
@@ -1731,7 +1826,7 @@ async fn mint_out_begin(
                     resp.status()
                 );
                 MINT_OUT_TOTAL.with_label_values(&["failed"]).inc();
-                let response = SpendResponse {
+                let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                     accepted: false,
                     reason: Some("registry update failed".to_string()),
                 };
@@ -1740,7 +1835,7 @@ async fn mint_out_begin(
             Err(e) => {
                 error!("mint_out_begin registry spend request error for signer {idx}: {e}");
                 MINT_OUT_TOTAL.with_label_values(&["failed"]).inc();
-                let response = SpendResponse {
+                let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                     accepted: false,
                     reason: Some("registry update failed".to_string()),
                 };
@@ -1749,7 +1844,7 @@ async fn mint_out_begin(
         }
     }
 
-    let response = SpendResponse {
+    let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
         accepted: true,
         reason: None,
     };
@@ -2274,19 +2369,53 @@ async fn require_operator_secret(
     req: Request,
     next: middleware::Next,
 ) -> impl IntoResponse {
-    let expected = state.operator_secret.as_str();
+    use subtle::ConstantTimeEq;
     let header_val = req
         .headers()
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok());
     if let Some(h) = header_val {
         if let Some(token) = h.strip_prefix("Bearer ") {
-            if token == expected {
+            let token_bytes = token.as_bytes();
+            // Check all secrets; iterate all to avoid timing leaks on list position.
+            let mut authorized = false;
+            for secret in &state.operator_secrets {
+                let expected = secret.as_bytes();
+                if token_bytes.len() == expected.len()
+                    && token_bytes.ct_eq(expected).unwrap_u8() == 1
+                {
+                    authorized = true;
+                }
+            }
+            if authorized {
                 return next.run(req).await;
             }
         }
     }
     StatusCode::UNAUTHORIZED.into_response()
+}
+
+fn check_protocol_version(v: u8) -> Result<(), (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+    if v != CURRENT_PROTOCOL_VERSION {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({
+                "error": "unsupported_protocol_version",
+                "supported": CURRENT_PROTOCOL_VERSION,
+                "received": v,
+            })),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_secret(name: &str, value: &str) {
+    if value.len() < 32 {
+        panic!("{name} must be at least 32 characters long");
+    }
+    if value.starts_with("dev-") {
+        panic!("{name} must not use a development placeholder (starts with 'dev-')");
+    }
 }
 
 fn hash_message(message: &[u8]) -> Vec<u8> {

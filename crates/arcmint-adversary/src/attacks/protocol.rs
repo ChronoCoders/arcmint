@@ -5,7 +5,7 @@ use arcmint_core::crypto::{compute_theta, hash_identity, random_scalar};
 use arcmint_core::note::{generate_note_candidate, SignedNote};
 use arcmint_core::protocol::{
     IssuanceChallenge, IssuanceRequest, IssuanceReveal, RegistrationRequest, RegistrationResponse,
-    SpendChallenge, SpendRequest, SpendResponse, UnsignedNoteReveal,
+    SpendChallenge, SpendRequest, SpendResponse, UnsignedNoteReveal, CURRENT_PROTOCOL_VERSION,
 };
 use arcmint_core::spending::generate_spend_proof;
 use rand::rngs::OsRng;
@@ -30,7 +30,7 @@ pub async fn attack_replay_spent_note(
         let note = setup_valid_note(client, config).await?;
         let http = &client.client;
 
-        let spend_req = SpendRequest {
+        let spend_req = SpendRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
             note: note.signed.clone(),
         };
 
@@ -48,7 +48,8 @@ pub async fn attack_replay_spent_note(
 
         let proof1 = generate_spend_proof(&note.unsigned, &challenge1.challenge_bits)?;
 
-        let complete_req1 = PaymentCompleteRequest {
+        let complete_req1 = PaymentCompleteRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
+            merchant_nonce: challenge1.merchant_nonce,
             serial: note.signed.data.serial,
             proof: proof1,
         };
@@ -140,7 +141,7 @@ pub async fn attack_malformed_note_missing_pairs(
 
         let note = SignedNote { data, signature };
 
-        let spend_req = SpendRequest { note };
+        let spend_req = SpendRequest { protocol_version: CURRENT_PROTOCOL_VERSION, note };
 
         let http = &client.client;
         let init_url = format!("{}/payment/initiate", config.merchant_url);
@@ -199,7 +200,7 @@ pub async fn attack_malformed_note_wrong_denomination(
         let mut tampered = note.signed.clone();
         tampered.data.denomination = 0;
 
-        let spend_req = SpendRequest { note: tampered };
+        let spend_req = SpendRequest { protocol_version: CURRENT_PROTOCOL_VERSION, note: tampered };
 
         let init_url = format!("{}/payment/initiate", config.merchant_url);
         let resp = http.post(&init_url).json(&spend_req).send().await?;
@@ -272,7 +273,7 @@ pub async fn attack_registry_bypass_skip_issued_check(
 
         let note = SignedNote { data, signature };
 
-        let spend_req = SpendRequest { note };
+        let spend_req = SpendRequest { protocol_version: CURRENT_PROTOCOL_VERSION, note };
 
         let http = &client.client;
         let init_url = format!("{}/payment/initiate", config.merchant_url);
@@ -343,7 +344,7 @@ pub async fn attack_expired_note(client: &AdversaryClient, config: &CliConfig) -
         let note = setup_valid_note(client, config).await?;
         let http = &client.client;
 
-        let spend_req = SpendRequest {
+        let spend_req = SpendRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
             note: note.signed.clone(),
         };
 
@@ -363,7 +364,8 @@ pub async fn attack_expired_note(client: &AdversaryClient, config: &CliConfig) -
 
         let proof = generate_spend_proof(&note.unsigned, &challenge.challenge_bits)?;
 
-        let complete_req = PaymentCompleteRequest {
+        let complete_req = PaymentCompleteRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
+            merchant_nonce: challenge.merchant_nonce,
             serial: note.signed.data.serial,
             proof,
         };
@@ -436,7 +438,7 @@ pub async fn attack_flood_issuance(client: &AdversaryClient, config: &CliConfig)
         let mut last_status = None;
 
         for attempt in 1..=20 {
-            let reg_req = RegistrationRequest {
+            let reg_req = RegistrationRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
                 identity_id: identity_id.clone(),
                 theta_u: theta_u.to_vec(),
                 proof_of_identity: String::new(),
@@ -470,7 +472,7 @@ pub async fn attack_flood_issuance(client: &AdversaryClient, config: &CliConfig)
                 blinded_candidates.push(unsigned.data.clone());
             }
 
-            let issue_req = IssuanceRequest {
+            let issue_req = IssuanceRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
                 blinded_candidates,
                 gateway_token: reg_body.gateway_token,
             };
@@ -613,7 +615,7 @@ pub async fn attack_malformed_issuance_reveal(
         let h_u = hash_identity(identity_id);
         let theta_u = compute_theta(&h_u, &r_u);
 
-        let reg_req = RegistrationRequest {
+        let reg_req = RegistrationRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
             identity_id: identity_id.to_string(),
             theta_u: theta_u.to_vec(),
             proof_of_identity: String::new(),
@@ -640,7 +642,7 @@ pub async fn attack_malformed_issuance_reveal(
             unsigned_candidates.push(unsigned);
         }
 
-        let issue_req = IssuanceRequest {
+        let issue_req = IssuanceRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
             blinded_candidates,
             gateway_token: reg_body.gateway_token,
         };
@@ -688,7 +690,7 @@ pub async fn attack_malformed_issuance_reveal(
             revealed.push(reveal);
         }
 
-        let reveal_req = IssuanceReveal {
+        let reveal_req = IssuanceReveal { protocol_version: CURRENT_PROTOCOL_VERSION,
             session_id: challenge.session_id,
             revealed,
         };
