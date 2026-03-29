@@ -2,14 +2,18 @@ use crate::crypto::SerialNumber;
 use crate::note::{NoteCommitmentData, SignedNote};
 use serde::{Deserialize, Serialize};
 
+pub const CURRENT_PROTOCOL_VERSION: u8 = 1;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct IssuanceRequest {
+    pub protocol_version: u8,
     pub blinded_candidates: Vec<NoteCommitmentData>,
     pub gateway_token: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct IssuanceChallenge {
+    pub protocol_version: u8,
     pub session_id: String,
     pub open_indices: Vec<usize>,
 }
@@ -26,22 +30,27 @@ pub struct UnsignedNoteReveal {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct IssuanceReveal {
+    pub protocol_version: u8,
     pub session_id: String,
     pub revealed: Vec<UnsignedNoteReveal>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct IssuanceResponse {
+    pub protocol_version: u8,
     pub signed_note: SignedNote,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SpendRequest {
+    pub protocol_version: u8,
     pub note: SignedNote,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SpendChallenge {
+    pub protocol_version: u8,
+    pub merchant_nonce: [u8; 32],
     pub challenge_bits: Vec<u8>,
 }
 
@@ -67,12 +76,14 @@ pub struct SpendProof {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SpendResponse {
+    pub protocol_version: u8,
     pub accepted: bool,
     pub reason: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RegistrationRequest {
+    pub protocol_version: u8,
     pub identity_id: String,
     pub theta_u: Vec<u8>,
     pub proof_of_identity: String,
@@ -80,6 +91,7 @@ pub struct RegistrationRequest {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RegistrationResponse {
+    pub protocol_version: u8,
     pub gateway_token: String,
 }
 
@@ -95,12 +107,14 @@ pub struct IdentityResolutionResponse {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MintInRequest {
+    pub protocol_version: u8,
     pub note_hash: Vec<u8>,
     pub denomination_msat: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MintInCommitment {
+    pub protocol_version: u8,
     pub mint_commitment: Vec<u8>,
     pub session_id: String,
     pub payment_request: String,

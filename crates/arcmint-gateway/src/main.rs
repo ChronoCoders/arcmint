@@ -4,7 +4,7 @@ use arcmint_core::metrics::{
 };
 use arcmint_core::protocol::{
     IdentityResolutionRequest, IdentityResolutionResponse, RegistrationRequest,
-    RegistrationResponse,
+    RegistrationResponse, CURRENT_PROTOCOL_VERSION,
 };
 use arcmint_core::tls::load_tls_server_config;
 use axum::extract::{Path, Request, State};
@@ -24,10 +24,11 @@ use rustls_acme::AcmeConfig;
 use sha2::Sha256;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Row, SqlitePool};
+use std::collections::HashMap;
 use std::env;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::Path as FsPath;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use subtle::ConstantTimeEq;
 use tokio::net::TcpListener;
@@ -43,7 +44,10 @@ struct GatewayState {
     pool: SqlitePool,
     gateway_secret: String,
     federation_secret: String,
+    operator_secrets: Vec<String>,
     max_issuance_per_hour: u64,
+    max_registrations_per_hour: u64,
+    ip_registration_counts: Arc<Mutex<HashMap<IpAddr, (u32, i64)>>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -104,8 +108,27 @@ async fn main() {
     let gateway_secret = env::var("GATEWAY_SECRET").expect("GATEWAY_SECRET env var must be set");
     let federation_secret =
         env::var("FEDERATION_SECRET").expect("FEDERATION_SECRET env var must be set");
+    let operator_secrets: Vec<String> = env::var("OPERATOR_SECRET")
+        .expect("OPERATOR_SECRET env var must be set")
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if operator_secrets.is_empty() {
+        panic!("OPERATOR_SECRET must contain at least one secret");
+    }
+    validate_secret("GATEWAY_SECRET", &gateway_secret);
+    validate_secret("FEDERATION_SECRET", &federation_secret);
+    for (i, s) in operator_secrets.iter().enumerate() {
+        validate_secret(&format!("OPERATOR_SECRET[{i}]"), s);
+    }
 
     let max_issuance_per_hour: u64 = env::var("MAX_ISSUANCE_PER_HOUR")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(10);
+
+    let max_registrations_per_hour: u64 = env::var("MAX_REGISTRATIONS_PER_HOUR")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(10);
@@ -124,10 +147,15 @@ async fn main() {
         pool,
         gateway_secret,
         federation_secret,
+        operator_secrets,
         max_issuance_per_hour,
+        max_registrations_per_hour,
+        ip_registration_counts: Arc::new(Mutex::new(HashMap::new())),
     });
 
     let merchant_auth_layer = middleware::from_fn_with_state(state.clone(), validate_merchant_key);
+    let operator_auth_layer =
+        middleware::from_fn_with_state(state.clone(), require_operator_auth);
 
     let app = axum::Router::new()
         .route("/register", post(register))
@@ -165,11 +193,15 @@ async fn main() {
                     )],
                     body,
                 )
-            }),
+            })
+            .route_layer(operator_auth_layer),
         )
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let bind_host = env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let addr: SocketAddr = format!("{bind_host}:{port}")
+        .parse()
+        .expect("invalid BIND_ADDR");
 
     let acme_domain = env::var("ACME_DOMAIN").ok().filter(|s| !s.is_empty());
 
@@ -206,7 +238,7 @@ async fn main() {
             match conn {
                 Ok(stream) => {
                     tokio::spawn(async move {
-                        serve_connection(stream, app).await;
+                        serve_connection(stream, app, None).await;
                     });
                 }
                 Err(e) => {
@@ -251,19 +283,22 @@ async fn main() {
                     }
                 };
 
-                serve_connection(tls_stream, app).await;
+                serve_connection(tls_stream, app, Some(peer_addr)).await;
             });
         }
     }
 }
 
-async fn serve_connection<S>(stream: S, app: axum::Router)
+async fn serve_connection<S>(stream: S, app: axum::Router, peer_addr: Option<SocketAddr>)
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
     let io = TokioIo::new(stream);
 
-    let tower_service = tower::service_fn(move |req: HyperRequest<Incoming>| {
+    let tower_service = tower::service_fn(move |mut req: HyperRequest<Incoming>| {
+        if let Some(addr) = peer_addr {
+            req.extensions_mut().insert(addr);
+        }
         let app = app.clone();
         async move { app.clone().oneshot(req).await }
     });
@@ -326,8 +361,44 @@ async fn init_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 
 async fn register(
     State(state): State<Arc<GatewayState>>,
+    peer_addr: Option<axum::extract::Extension<SocketAddr>>,
+    headers: HeaderMap,
     Json(req): Json<RegistrationRequest>,
 ) -> impl IntoResponse {
+    // IP-based registration rate limit
+    let client_ip = extract_client_ip(&headers, peer_addr.map(|e| e.0));
+    if let Some(ip) = client_ip {
+        let now = current_timestamp();
+        let mut counts = state.ip_registration_counts.lock().unwrap_or_else(|e| e.into_inner());
+        let entry = counts.entry(ip).or_insert((0u32, now));
+        let window_elapsed = now.saturating_sub(entry.1);
+        if !(0..3600).contains(&window_elapsed) {
+            // window expired — reset
+            *entry = (0u32, now);
+        }
+        entry.0 = entry.0.saturating_add(1);
+        if entry.0 > state.max_registrations_per_hour as u32 {
+            RATE_LIMIT_HITS_TOTAL.inc();
+            REGISTRATION_ATTEMPTS_TOTAL.with_label_values(&["rate_limited"]).inc();
+            return StatusCode::TOO_MANY_REQUESTS.into_response();
+        }
+    }
+
+    if req.protocol_version != CURRENT_PROTOCOL_VERSION {
+        REGISTRATION_ATTEMPTS_TOTAL
+            .with_label_values(&["invalid"])
+            .inc();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "unsupported_protocol_version",
+                "supported": CURRENT_PROTOCOL_VERSION,
+                "received": req.protocol_version,
+            })),
+        )
+            .into_response();
+    }
+
     if req.identity_id.trim().is_empty() {
         REGISTRATION_ATTEMPTS_TOTAL
             .with_label_values(&["invalid"])
@@ -410,6 +481,7 @@ async fn register(
     let _ = verify_token(&state.gateway_secret, &token, &theta_hex);
 
     let response = RegistrationResponse {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         gateway_token: token,
     };
 
@@ -514,6 +586,7 @@ async fn token_refresh(
 
     let token = compute_gateway_token(&state.gateway_secret, &theta_hex);
     let response = RegistrationResponse {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         gateway_token: token,
     };
 
@@ -685,7 +758,7 @@ async fn merchant_register(
     headers: HeaderMap,
     Json(req): Json<MerchantRegisterRequest>,
 ) -> impl IntoResponse {
-    if !authorize_operator(&headers) {
+    if !authorize_operator(&headers, &state.operator_secrets) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
@@ -729,7 +802,7 @@ async fn merchant_rotate_key(
     headers: HeaderMap,
     Path(merchant_id): Path<String>,
 ) -> impl IntoResponse {
-    if !authorize_operator(&headers) {
+    if !authorize_operator(&headers, &state.operator_secrets) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
@@ -763,7 +836,7 @@ async fn merchant_rotate_key(
     let new_hash = compute_api_key_hash(&api_key);
 
     let now = current_timestamp();
-    let grace_expires_at = now.saturating_add(86400);
+    let grace_expires_at = now.saturating_add(3600);
 
     let mut tx = match state.pool.begin().await {
         Ok(t) => t,
@@ -827,7 +900,7 @@ async fn merchant_get(
     headers: HeaderMap,
     Path(merchant_id): Path<String>,
 ) -> impl IntoResponse {
-    if !authorize_operator(&headers) {
+    if !authorize_operator(&headers, &state.operator_secrets) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
@@ -878,7 +951,7 @@ async fn merchant_delete(
     headers: HeaderMap,
     Path(merchant_id): Path<String>,
 ) -> impl IntoResponse {
-    if !authorize_operator(&headers) {
+    if !authorize_operator(&headers, &state.operator_secrets) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
@@ -1062,23 +1135,47 @@ fn authorize(secret: &str, headers: &HeaderMap) -> bool {
     false
 }
 
-fn authorize_operator(headers: &HeaderMap) -> bool {
+fn authorize_operator(headers: &HeaderMap, secrets: &[String]) -> bool {
     if let Some(value) = headers.get(axum::http::header::AUTHORIZATION) {
         if let Ok(s) = value.to_str() {
-            let prefix = "Bearer ";
-            if let Some(token) = s.strip_prefix(prefix) {
-                if let Ok(expected) = env::var("OPERATOR_SECRET") {
-                    let token_bytes = token.as_bytes();
-                    let expected_bytes = expected.as_bytes();
-                    if token_bytes.len() != expected_bytes.len() {
-                        return false;
+            if let Some(token) = s.strip_prefix("Bearer ") {
+                let token_bytes = token.as_bytes();
+                // Check all secrets; iterate all to avoid timing leaks on list position.
+                let mut authorized = false;
+                for secret in secrets {
+                    let expected = secret.as_bytes();
+                    if token_bytes.len() == expected.len()
+                        && token_bytes.ct_eq(expected).unwrap_u8() == 1
+                    {
+                        authorized = true;
                     }
-                    return token_bytes.ct_eq(expected_bytes).unwrap_u8() == 1;
                 }
+                return authorized;
             }
         }
     }
     false
+}
+
+async fn require_operator_auth(
+    State(state): State<Arc<GatewayState>>,
+    req: axum::extract::Request,
+    next: middleware::Next,
+) -> impl IntoResponse {
+    if authorize_operator(req.headers(), &state.operator_secrets) {
+        next.run(req).await
+    } else {
+        StatusCode::UNAUTHORIZED.into_response()
+    }
+}
+
+fn validate_secret(name: &str, value: &str) {
+    if value.len() < 32 {
+        panic!("{name} must be at least 32 characters long");
+    }
+    if value.starts_with("dev-") {
+        panic!("{name} must not use a development placeholder (starts with 'dev-')");
+    }
 }
 
 fn compute_api_key_hash(api_key: &str) -> String {
@@ -1112,4 +1209,14 @@ fn current_timestamp() -> i64 {
         Ok(dur) => dur.as_secs() as i64,
         Err(_) => 0,
     }
+}
+
+fn extract_client_ip(headers: &HeaderMap, peer_addr: Option<SocketAddr>) -> Option<IpAddr> {
+    // Trust X-Real-IP if operator has placed gateway behind a reverse proxy.
+    if let Some(val) = headers.get("X-Real-IP").and_then(|v| v.to_str().ok()) {
+        if let Ok(ip) = val.trim().parse::<IpAddr>() {
+            return Some(ip);
+        }
+    }
+    peer_addr.map(|a| a.ip())
 }

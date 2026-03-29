@@ -6,7 +6,7 @@ use arcmint_core::note::{SignedNote, UnsignedNote};
 use arcmint_core::protocol::{
     IssuanceChallenge, IssuanceRequest, IssuanceResponse, IssuanceReveal, RegistrationRequest,
     RegistrationResponse, SpendChallenge, SpendProof, SpendRequest, SpendResponse,
-    UnsignedNoteReveal,
+    UnsignedNoteReveal, CURRENT_PROTOCOL_VERSION,
 };
 use arcmint_core::spending::generate_spend_proof;
 use clap::{Parser, Subcommand};
@@ -41,6 +41,8 @@ struct StoredNote {
 
 #[derive(Serialize)]
 struct PaymentCompleteRequest {
+    protocol_version: u8,
+    merchant_nonce: [u8; 32],
     serial: SerialNumber,
     proof: SpendProof,
 }
@@ -131,6 +133,7 @@ async fn register_command(
     let theta_u_bytes = compute_theta(&h_u, &r_u);
 
     let req = RegistrationRequest {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         identity_id: identity_id.to_string(),
         theta_u: theta_u_bytes.to_vec(),
         proof_of_identity: String::new(),
@@ -191,6 +194,7 @@ async fn generate_note_command(
     }
 
     let issue_req = IssuanceRequest {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         blinded_candidates,
         gateway_token: wallet.gateway_token.clone(),
     };
@@ -237,6 +241,7 @@ async fn generate_note_command(
     }
 
     let reveal_req = IssuanceReveal {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         session_id: challenge.session_id,
         revealed,
     };
@@ -323,6 +328,7 @@ async fn spend_command(
     let stored = wallet.notes[pos].clone();
 
     let spend_req = SpendRequest {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         note: stored.signed_note.clone(),
     };
 
@@ -377,6 +383,8 @@ async fn spend_command(
     let serial_value = SerialNumber(serial_arr);
 
     let complete_req = PaymentCompleteRequest {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
+        merchant_nonce: challenge.merchant_nonce,
         serial: serial_value,
         proof: proof.clone(),
     };

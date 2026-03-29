@@ -6,7 +6,7 @@ use arcmint_core::note::{generate_note_candidate, SignedNote, UnsignedNote};
 use arcmint_core::protocol::{
     AuditResponse, IssuanceChallenge, IssuanceRequest, IssuanceResponse, IssuanceReveal,
     RegistrationRequest, RegistrationResponse, SpendChallenge, SpendRequest, SpendResponse,
-    UnsignedNoteReveal,
+    UnsignedNoteReveal, CURRENT_PROTOCOL_VERSION,
 };
 use arcmint_core::spending::generate_spend_proof;
 use rand::rngs::OsRng;
@@ -27,6 +27,8 @@ pub(crate) struct NoteContext {
 
 #[derive(Serialize)]
 pub(crate) struct PaymentCompleteRequest {
+    pub protocol_version: u8,
+    pub merchant_nonce: [u8; 32],
     pub serial: SerialNumber,
     pub proof: arcmint_core::protocol::SpendProof,
 }
@@ -45,6 +47,7 @@ pub(crate) async fn setup_valid_note(
     let theta_u = compute_theta(&h_u, &r_u);
 
     let reg_req = RegistrationRequest {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         identity_id,
         theta_u: theta_u.to_vec(),
         proof_of_identity: String::new(),
@@ -72,6 +75,7 @@ pub(crate) async fn setup_valid_note(
     }
 
     let issue_req = IssuanceRequest {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         blinded_candidates,
         gateway_token: reg_body.gateway_token,
     };
@@ -118,6 +122,7 @@ pub(crate) async fn setup_valid_note(
     }
 
     let reveal_req = IssuanceReveal {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         session_id: challenge.session_id,
         revealed,
     };
@@ -201,7 +206,7 @@ pub async fn attack_double_spend(client: &AdversaryClient, config: &CliConfig) -
         let note = setup_valid_note(client, config).await?;
         let http = &client.client;
 
-        let spend_req = SpendRequest {
+        let spend_req = SpendRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
             note: note.signed.clone(),
         };
 
@@ -213,7 +218,8 @@ pub async fn attack_double_spend(client: &AdversaryClient, config: &CliConfig) -
 
         let proof1 = generate_spend_proof(&note.unsigned, &challenge1.challenge_bits)?;
 
-        let complete_req1 = PaymentCompleteRequest {
+        let complete_req1 = PaymentCompleteRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
+            merchant_nonce: challenge1.merchant_nonce,
             serial: note.signed.data.serial,
             proof: proof1,
         };
@@ -232,7 +238,8 @@ pub async fn attack_double_spend(client: &AdversaryClient, config: &CliConfig) -
             let challenge2: SpendChallenge = init_resp2.json().await?;
             let proof2 = generate_spend_proof(&note.unsigned, &challenge2.challenge_bits)?;
 
-            let complete_req2 = PaymentCompleteRequest {
+            let complete_req2 = PaymentCompleteRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
+                merchant_nonce: challenge2.merchant_nonce,
                 serial: note.signed.data.serial,
                 proof: proof2,
             };
@@ -303,7 +310,7 @@ pub async fn attack_double_spend_different_merchants(
         let note = setup_valid_note(client, config).await?;
         let http = &client.client;
 
-        let spend_req = SpendRequest {
+        let spend_req = SpendRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
             note: note.signed.clone(),
         };
 
@@ -320,7 +327,8 @@ pub async fn attack_double_spend_different_merchants(
 
         let proof1 = generate_spend_proof(&note.unsigned, &challenge1.challenge_bits)?;
 
-        let complete_req1 = PaymentCompleteRequest {
+        let complete_req1 = PaymentCompleteRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
+            merchant_nonce: challenge1.merchant_nonce,
             serial: note.signed.data.serial,
             proof: proof1,
         };
@@ -343,7 +351,8 @@ pub async fn attack_double_spend_different_merchants(
             let challenge2: SpendChallenge = init_resp2.json().await?;
             let proof2 = generate_spend_proof(&note.unsigned, &challenge2.challenge_bits)?;
 
-            let complete_req2 = PaymentCompleteRequest {
+            let complete_req2 = PaymentCompleteRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
+                merchant_nonce: challenge2.merchant_nonce,
                 serial: note.signed.data.serial,
                 proof: proof2,
             };
@@ -422,7 +431,7 @@ pub async fn attack_forged_signature(client: &AdversaryClient, config: &CliConfi
 
         let http = &client.client;
 
-        let spend_req = SpendRequest { note: forged };
+        let spend_req = SpendRequest { protocol_version: CURRENT_PROTOCOL_VERSION, note: forged };
         let init_url = format!("{}/payment/initiate", config.merchant_url);
         let init_resp = http.post(&init_url).json(&spend_req).send().await?;
 
@@ -483,7 +492,7 @@ pub async fn attack_wrong_commitment_opening(
         let note = setup_valid_note(client, config).await?;
         let http = &client.client;
 
-        let spend_req = SpendRequest {
+        let spend_req = SpendRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
             note: note.signed.clone(),
         };
 
@@ -499,7 +508,8 @@ pub async fn attack_wrong_commitment_opening(
             std::mem::swap(&mut rs.value_scalar, &mut rs.blinding_scalar);
         }
 
-        let complete_req = PaymentCompleteRequest {
+        let complete_req = PaymentCompleteRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
+            merchant_nonce: challenge.merchant_nonce,
             serial: note.signed.data.serial,
             proof,
         };
@@ -555,7 +565,7 @@ pub async fn attack_challenge_precomputation(
         let note = setup_valid_note(client, config).await?;
         let http = &client.client;
 
-        let spend_req = SpendRequest {
+        let spend_req = SpendRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
             note: note.signed.clone(),
         };
 
@@ -568,7 +578,8 @@ pub async fn attack_challenge_precomputation(
         let zero_challenge = vec![0u8; challenge.challenge_bits.len()];
         let proof = generate_spend_proof(&note.unsigned, &zero_challenge)?;
 
-        let complete_req = PaymentCompleteRequest {
+        let complete_req = PaymentCompleteRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
+            merchant_nonce: challenge.merchant_nonce,
             serial: note.signed.data.serial,
             proof,
         };
@@ -625,7 +636,7 @@ pub async fn attack_theta_recovery_verification(
         let note = setup_valid_note(client, config).await?;
         let http = &client.client;
 
-        let spend_req = SpendRequest {
+        let spend_req = SpendRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
             note: note.signed.clone(),
         };
 
@@ -635,7 +646,8 @@ pub async fn attack_theta_recovery_verification(
         let init_resp1 = http.post(&init_url).json(&spend_req).send().await?;
         let challenge1: SpendChallenge = init_resp1.json().await?;
         let proof1 = generate_spend_proof(&note.unsigned, &challenge1.challenge_bits)?;
-        let complete_req1 = PaymentCompleteRequest {
+        let complete_req1 = PaymentCompleteRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
+            merchant_nonce: challenge1.merchant_nonce,
             serial: note.signed.data.serial,
             proof: proof1,
         };
@@ -645,7 +657,8 @@ pub async fn attack_theta_recovery_verification(
         let init_resp2 = http.post(&init_url).json(&spend_req).send().await?;
         let challenge2: SpendChallenge = init_resp2.json().await?;
         let proof2 = generate_spend_proof(&note.unsigned, &challenge2.challenge_bits)?;
-        let complete_req2 = PaymentCompleteRequest {
+        let complete_req2 = PaymentCompleteRequest { protocol_version: CURRENT_PROTOCOL_VERSION,
+            merchant_nonce: challenge2.merchant_nonce,
             serial: note.signed.data.serial,
             proof: proof2,
         };

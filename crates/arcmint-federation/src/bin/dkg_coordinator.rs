@@ -181,7 +181,10 @@ async fn main() {
     .expect("failed to build DKG TLS server config");
     let tls_acceptor = TlsAcceptor::from(Arc::new(tls_config));
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let bind_host = env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let addr: SocketAddr = format!("{bind_host}:{port}")
+        .parse()
+        .expect("invalid BIND_ADDR");
     info!("starting DKG coordinator on {addr} (mTLS enabled)");
 
     let listener = tokio::net::TcpListener::bind(addr)

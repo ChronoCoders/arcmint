@@ -5,16 +5,17 @@ use arcmint_core::metrics::{
     NOTE_VERIFICATION_FAILURES_TOTAL, PAYMENT_INITIATION_TOTAL, PENDING_SPEND_COUNT,
 };
 use arcmint_core::note::SignedNote;
-use arcmint_core::protocol::{SpendChallenge, SpendProof, SpendRequest, SpendResponse};
+use arcmint_core::protocol::{SpendChallenge, SpendProof, SpendRequest, SpendResponse, CURRENT_PROTOCOL_VERSION};
 use arcmint_core::spending::{verify_frost_signature, verify_spend_proof};
-use axum::extract::{Query, State};
+use axum::extract::{Query, Request, State};
 use axum::http::StatusCode;
+use axum::middleware;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::Json;
 use frost_ristretto255::keys::PublicKeyPackage;
-use rand::rngs::ThreadRng;
-use rand::{thread_rng, Rng};
+use rand::rngs::{OsRng, ThreadRng};
+use rand::{thread_rng, Rng, RngCore};
 use reqwest::Client;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Row, SqlitePool};
@@ -23,8 +24,9 @@ use std::net::SocketAddr;
 use std::path::Path as FsPath;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use subtle::ConstantTimeEq;
 use tokio::sync::Mutex;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 #[derive(Clone)]
 struct MerchantState {
@@ -32,6 +34,7 @@ struct MerchantState {
     coordinator_url: String,
     public_key_package: PublicKeyPackage,
     http_client: Client,
+    operator_secrets: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -54,6 +57,8 @@ struct PaymentRow {
 
 #[derive(serde::Deserialize)]
 struct PaymentCompleteRequest {
+    protocol_version: u8,
+    merchant_nonce: [u8; 32],
     serial: SerialNumber,
     proof: SpendProof,
 }
@@ -64,6 +69,7 @@ struct CoordinatorSpendVerifyRequest {
     proof: SpendProof,
     challenge_bits: Option<Vec<u8>>,
     note: Option<SignedNote>,
+    merchant_nonce: Option<[u8; 32]>,
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -87,6 +93,18 @@ async fn main() {
     };
 
     let coordinator_url = env::var("COORDINATOR_URL").expect("COORDINATOR_URL env var must be set");
+    let operator_secrets: Vec<String> = env::var("OPERATOR_SECRET")
+        .expect("OPERATOR_SECRET env var must be set")
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if operator_secrets.is_empty() {
+        panic!("OPERATOR_SECRET must contain at least one secret");
+    }
+    for (i, s) in operator_secrets.iter().enumerate() {
+        validate_secret(&format!("OPERATOR_SECRET[{i}]"), s);
+    }
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
@@ -107,6 +125,7 @@ async fn main() {
         coordinator_url,
         public_key_package,
         http_client,
+        operator_secrets,
     };
 
     let shared = AppState {
@@ -117,6 +136,9 @@ async fn main() {
     tokio::spawn(async move {
         cleanup_loop(cleanup_pool).await;
     });
+
+    let operator_auth_layer =
+        middleware::from_fn_with_state(shared.clone(), require_operator_auth);
 
     let app = axum::Router::new()
         .route("/payment/initiate", post(payment_initiate))
@@ -134,86 +156,116 @@ async fn main() {
                     )],
                     body,
                 )
-            }),
+            })
+            .route_layer(operator_auth_layer),
         )
         .with_state(shared);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let bind_host = env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let addr: SocketAddr = format!("{bind_host}:{port}")
+        .parse()
+        .expect("invalid BIND_ADDR");
 
-    let tls_cert_file = env::var("TLS_CERT_FILE").ok();
-    let tls_key_file = env::var("TLS_KEY_FILE").ok();
+    let tls_cert_file =
+        env::var("TLS_CERT_FILE").expect("TLS_CERT_FILE env var must be set for merchant TLS");
+    let tls_key_file =
+        env::var("TLS_KEY_FILE").expect("TLS_KEY_FILE env var must be set for merchant TLS");
 
-    if let (Some(cert_file), Some(key_file)) = (tls_cert_file, tls_key_file) {
-        use arcmint_core::tls::load_tls_server_config;
-        use hyper::body::Incoming;
-        use hyper::Request as HyperRequest;
-        use hyper_util::rt::{TokioExecutor, TokioIo};
-        use hyper_util::service::TowerToHyperService;
-        use tokio_rustls::TlsAcceptor;
-        use tower::ServiceExt;
-        use tracing::error as tls_error;
+    use arcmint_core::tls::load_tls_server_config;
+    use hyper::body::Incoming;
+    use hyper::Request as HyperRequest;
+    use hyper_util::rt::{TokioExecutor, TokioIo};
+    use hyper_util::service::TowerToHyperService;
+    use tokio_rustls::TlsAcceptor;
+    use tower::ServiceExt;
 
-        info!("starting merchant on {addr} (TLS enabled)");
+    info!("starting merchant on {addr} (TLS enabled)");
 
-        let tls_config =
-            load_tls_server_config(FsPath::new(&cert_file), FsPath::new(&key_file), None)
-                .expect("failed to build merchant TLS server config");
-        let tls_acceptor = TlsAcceptor::from(Arc::new(tls_config));
+    let tls_config =
+        load_tls_server_config(FsPath::new(&tls_cert_file), FsPath::new(&tls_key_file), None)
+            .expect("failed to build merchant TLS server config");
+    let tls_acceptor = TlsAcceptor::from(Arc::new(tls_config));
 
-        let listener = tokio::net::TcpListener::bind(addr)
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .expect("failed to bind TCP listener");
+
+    loop {
+        let (stream, peer_addr) = listener
+            .accept()
             .await
-            .expect("failed to bind TCP listener");
+            .expect("failed to accept connection");
+        let tls_acceptor = tls_acceptor.clone();
+        let app = app.clone();
 
-        loop {
-            let (stream, peer_addr) = listener
-                .accept()
-                .await
-                .expect("failed to accept connection");
-            let tls_acceptor = tls_acceptor.clone();
-            let app = app.clone();
-
-            tokio::spawn(async move {
-                let tls_stream = match tls_acceptor.accept(stream).await {
-                    Ok(s) => s,
-                    Err(e) => {
-                        tls_error!("TLS handshake error from {peer_addr}: {e}");
-                        return;
-                    }
-                };
-
-                let io = TokioIo::new(tls_stream);
-
-                let tower_service = tower::service_fn(move |req: HyperRequest<Incoming>| {
-                    let app = app.clone();
-                    async move { app.clone().oneshot(req).await }
-                });
-
-                let service = TowerToHyperService::new(tower_service);
-
-                if let Err(err) = hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
-                    .serve_connection(io, service)
-                    .await
-                {
-                    tls_error!("error while serving TLS connection from {peer_addr}: {err}");
+        tokio::spawn(async move {
+            let tls_stream = match tls_acceptor.accept(stream).await {
+                Ok(s) => s,
+                Err(e) => {
+                    error!("TLS handshake error from {peer_addr}: {e}");
+                    return;
                 }
+            };
+
+            let io = TokioIo::new(tls_stream);
+
+            let tower_service = tower::service_fn(move |req: HyperRequest<Incoming>| {
+                let app = app.clone();
+                async move { app.clone().oneshot(req).await }
             });
+
+            let service = TowerToHyperService::new(tower_service);
+
+            if let Err(err) = hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
+                .serve_connection(io, service)
+                .await
+            {
+                error!("error while serving TLS connection from {peer_addr}: {err}");
+            }
+        });
+    }
+}
+
+async fn require_operator_auth(
+    State(state): State<AppState>,
+    req: Request,
+    next: middleware::Next,
+) -> impl IntoResponse {
+    let secrets = {
+        let guard = state.inner.lock().await;
+        guard.operator_secrets.clone()
+    };
+    let header_val = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok());
+    if let Some(h) = header_val {
+        if let Some(token) = h.strip_prefix("Bearer ") {
+            let token_bytes = token.as_bytes();
+            // Check all secrets; iterate all to avoid timing leaks on list position.
+            let mut authorized = false;
+            for secret in &secrets {
+                let expected = secret.as_bytes();
+                if token_bytes.len() == expected.len()
+                    && token_bytes.ct_eq(expected).unwrap_u8() == 1
+                {
+                    authorized = true;
+                }
+            }
+            if authorized {
+                return next.run(req).await;
+            }
         }
-    } else {
-        let insecure = env::var("MERCHANT_INSECURE")
-            .map(|v| v == "true" || v == "1")
-            .unwrap_or(false);
+    }
+    StatusCode::UNAUTHORIZED.into_response()
+}
 
-        if !insecure {
-            panic!("TLS_CERT_FILE and TLS_KEY_FILE must be set. To run without TLS, set MERCHANT_INSECURE=true");
-        }
-
-        warn!("RUNNING WITHOUT TLS — INSECURE MODE — NOT FOR PRODUCTION");
-        info!("starting merchant on {addr} (plaintext — insecure mode)");
-
-        let listener = tokio::net::TcpListener::bind(addr)
-            .await
-            .expect("failed to bind TCP listener");
-        axum::serve(listener, app).await.expect("server error");
+fn validate_secret(name: &str, value: &str) {
+    if value.len() < 32 {
+        panic!("{name} must be at least 32 characters long");
+    }
+    if value.starts_with("dev-") {
+        panic!("{name} must not use a development placeholder (starts with 'dev-')");
     }
 }
 
@@ -232,6 +284,7 @@ async fn init_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         "CREATE TABLE IF NOT EXISTS pending_spends (
              serial TEXT PRIMARY KEY,
              challenge_bits TEXT NOT NULL,
+             merchant_nonce TEXT NOT NULL,
              note_json TEXT NOT NULL,
              expires_at INTEGER NOT NULL
          )",
@@ -247,6 +300,21 @@ async fn payment_initiate(
     State(state): State<AppState>,
     Json(req): Json<SpendRequest>,
 ) -> impl IntoResponse {
+    if req.protocol_version != CURRENT_PROTOCOL_VERSION {
+        PAYMENT_INITIATION_TOTAL
+            .with_label_values(&["rejected"])
+            .inc();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "unsupported_protocol_version",
+                "supported": CURRENT_PROTOCOL_VERSION,
+                "received": req.protocol_version,
+            })),
+        )
+            .into_response();
+    }
+
     let signed = req.note;
     let data = signed.data.clone();
 
@@ -269,9 +337,20 @@ async fn payment_initiate(
         NOTE_VERIFICATION_FAILURES_TOTAL
             .with_label_values(&["invalid_signature"])
             .inc();
-        let response = SpendResponse {
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
             accepted: false,
             reason: Some("invalid signature".to_string()),
+        };
+        return (StatusCode::OK, Json(response)).into_response();
+    }
+
+    if data.expires_at > 0 && current_timestamp() > data.expires_at {
+        NOTE_VERIFICATION_FAILURES_TOTAL
+            .with_label_values(&["expired"])
+            .inc();
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
+            accepted: false,
+            reason: Some("note expired".to_string()),
         };
         return (StatusCode::OK, Json(response)).into_response();
     }
@@ -288,7 +367,7 @@ async fn payment_initiate(
             PAYMENT_INITIATION_TOTAL
                 .with_label_values(&["duplicate"])
                 .inc();
-            let response = SpendResponse {
+            let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                 accepted: false,
                 reason: Some("note already accepted".to_string()),
             };
@@ -308,7 +387,7 @@ async fn payment_initiate(
         Err(e) => {
             error!("coordinator registry issued request error: {e}");
             PAYMENT_INITIATION_TOTAL.with_label_values(&["error"]).inc();
-            let response = SpendResponse {
+            let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                 accepted: false,
                 reason: Some("upstream coordinator error".to_string()),
             };
@@ -322,7 +401,7 @@ async fn payment_initiate(
             PAYMENT_INITIATION_TOTAL
                 .with_label_values(&["rejected"])
                 .inc();
-            let response = SpendResponse {
+            let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                 accepted: false,
                 reason: Some("note not issued".to_string()),
             };
@@ -331,7 +410,7 @@ async fn payment_initiate(
         other => {
             error!("coordinator registry issued HTTP {other}");
             PAYMENT_INITIATION_TOTAL.with_label_values(&["error"]).inc();
-            let response = SpendResponse {
+            let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                 accepted: false,
                 reason: Some("upstream coordinator error".to_string()),
             };
@@ -351,6 +430,11 @@ async fn payment_initiate(
     };
 
     let challenge_hex = hex::encode(&challenge_bits);
+
+    let mut merchant_nonce = [0u8; 32];
+    OsRng.fill_bytes(&mut merchant_nonce);
+    let nonce_hex = hex::encode(merchant_nonce);
+
     let note_json = match serde_json::to_string(&signed) {
         Ok(s) => s,
         Err(e) => {
@@ -364,11 +448,12 @@ async fn payment_initiate(
     let expires_at = now.saturating_add(300);
 
     let insert_res = sqlx::query(
-        "INSERT OR REPLACE INTO pending_spends (serial, challenge_bits, note_json, expires_at)
-         VALUES (?1, ?2, ?3, ?4)",
+        "INSERT OR REPLACE INTO pending_spends (serial, challenge_bits, merchant_nonce, note_json, expires_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
     )
     .bind(&serial_hex)
     .bind(&challenge_hex)
+    .bind(&nonce_hex)
     .bind(&note_json)
     .bind(expires_at)
     .execute(&pool)
@@ -389,7 +474,11 @@ async fn payment_initiate(
         }
     }
 
-    let response = SpendChallenge { challenge_bits };
+    let response = SpendChallenge {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
+        merchant_nonce,
+        challenge_bits,
+    };
 
     PAYMENT_INITIATION_TOTAL
         .with_label_values(&["success"])
@@ -403,11 +492,23 @@ async fn payment_complete(
     State(state): State<AppState>,
     Json(req): Json<PaymentCompleteRequest>,
 ) -> impl IntoResponse {
+    if req.protocol_version != CURRENT_PROTOCOL_VERSION {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "unsupported_protocol_version",
+                "supported": CURRENT_PROTOCOL_VERSION,
+                "received": req.protocol_version,
+            })),
+        )
+            .into_response();
+    }
+
     if req.serial != req.proof.serial {
         NOTE_VERIFICATION_FAILURES_TOTAL
             .with_label_values(&["serial_mismatch"])
             .inc();
-        let response = SpendResponse {
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
             accepted: false,
             reason: Some("serial mismatch".to_string()),
         };
@@ -438,7 +539,7 @@ async fn payment_complete(
             NOTE_VERIFICATION_FAILURES_TOTAL
                 .with_label_values(&["no_pending_spend"])
                 .inc();
-            let response = SpendResponse {
+            let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                 accepted: false,
                 reason: Some("no pending spend".to_string()),
             };
@@ -460,6 +561,33 @@ async fn payment_complete(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
+    let stored_nonce_hex: String = match row.try_get("merchant_nonce") {
+        Ok(v) => v,
+        Err(e) => {
+            error!("merchant_nonce column error: {e:?}");
+            NOTE_VERIFICATION_FAILURES_TOTAL
+                .with_label_values(&["db_error"])
+                .inc();
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let stored_nonce = match hex::decode(&stored_nonce_hex) {
+        Ok(v) if v.len() == 32 => v,
+        _ => {
+            error!("merchant_nonce decode error");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    if req.merchant_nonce.ct_eq(stored_nonce.as_slice()).unwrap_u8() == 0 {
+        NOTE_VERIFICATION_FAILURES_TOTAL
+            .with_label_values(&["nonce_mismatch"])
+            .inc();
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
+            accepted: false,
+            reason: Some("invalid merchant nonce".to_string()),
+        };
+        return (StatusCode::OK, Json(response)).into_response();
+    }
     let note_json: String = match row.try_get("note_json") {
         Ok(v) => v,
         Err(e) => {
@@ -495,7 +623,7 @@ async fn payment_complete(
             }
         }
 
-        let response = SpendResponse {
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
             accepted: false,
             reason: Some("challenge expired".to_string()),
         };
@@ -532,7 +660,7 @@ async fn payment_complete(
         NOTE_VERIFICATION_FAILURES_TOTAL
             .with_label_values(&["invalid_spend_proof"])
             .inc();
-        let response = SpendResponse {
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
             accepted: false,
             reason: Some("invalid spend proof".to_string()),
         };
@@ -544,6 +672,7 @@ async fn payment_complete(
         proof: req.proof.clone(),
         challenge_bits: Some(challenge_bytes),
         note: Some(signed.clone()),
+        merchant_nonce: None,
     };
 
     // info!("sending coordinator spend verify request: {:?}", verify_req);
@@ -553,7 +682,7 @@ async fn payment_complete(
         Ok(r) => r,
         Err(e) => {
             error!("coordinator spend verify request error: {e}");
-            let response = SpendResponse {
+            let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
                 accepted: false,
                 reason: Some("upstream coordinator error".to_string()),
             };
@@ -563,7 +692,7 @@ async fn payment_complete(
 
     if !resp.status().is_success() {
         error!("coordinator spend verify HTTP {}", resp.status());
-        let response = SpendResponse {
+        let response = SpendResponse { protocol_version: CURRENT_PROTOCOL_VERSION,
             accepted: false,
             reason: Some("upstream coordinator error".to_string()),
         };

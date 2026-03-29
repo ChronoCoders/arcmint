@@ -1,4 +1,4 @@
-FROM rust:slim AS deps
+FROM rust:slim AS build
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends pkg-config libssl-dev protobuf-compiler && \
@@ -16,6 +16,7 @@ COPY crates/arcmint-merchant/Cargo.toml crates/arcmint-merchant/Cargo.toml
 COPY crates/arcmint-lnd/Cargo.toml crates/arcmint-lnd/Cargo.toml
 COPY crates/arcmint-adversary/Cargo.toml crates/arcmint-adversary/Cargo.toml
 COPY crates/arcmint-loadtest/Cargo.toml crates/arcmint-loadtest/Cargo.toml
+COPY crates/arcmint-monitor/Cargo.toml crates/arcmint-monitor/Cargo.toml
 COPY tests/integration/Cargo.toml tests/integration/Cargo.toml
 
 RUN mkdir -p crates/arcmint-core/src && echo 'pub fn stub(){}' > crates/arcmint-core/src/lib.rs && \
@@ -32,23 +33,11 @@ RUN mkdir -p crates/arcmint-core/src && echo 'pub fn stub(){}' > crates/arcmint-
     mkdir -p crates/arcmint-lnd/src && echo 'pub fn stub(){}' > crates/arcmint-lnd/src/lib.rs && \
     mkdir -p crates/arcmint-adversary/src && echo 'fn main(){}' > crates/arcmint-adversary/src/main.rs && \
     mkdir -p crates/arcmint-loadtest/src && echo 'fn main(){}' > crates/arcmint-loadtest/src/main.rs && \
+    mkdir -p crates/arcmint-monitor/src && echo 'fn main(){}' > crates/arcmint-monitor/src/main.rs && \
     mkdir -p tests/integration/src && echo 'pub fn stub(){}' > tests/integration/src/lib.rs
 
-RUN cargo build --release --workspace --features arcmint-federation/dev-keygen 2>/dev/null || true
+RUN cargo fetch
 
-FROM rust:slim AS build
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends pkg-config libssl-dev protobuf-compiler && \
-    rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-COPY --from=deps /usr/local/cargo/registry /usr/local/cargo/registry
-COPY --from=deps /usr/local/cargo/git /usr/local/cargo/git
-COPY --from=deps /app/target /app/target
-
-COPY Cargo.toml Cargo.lock ./
 COPY crates crates
 COPY tests tests
 RUN cargo build --release --workspace --features arcmint-federation/dev-keygen
@@ -72,6 +61,7 @@ COPY --from=build /app/target/release/keygen /usr/local/bin/keygen
 COPY --from=build /app/target/release/certgen /usr/local/bin/certgen
 COPY --from=build /app/target/release/dkg_coordinator /usr/local/bin/dkg_coordinator
 COPY --from=build /app/target/release/dkg_participant /usr/local/bin/dkg_participant
+COPY --from=build /app/target/release/arcmint-monitor /usr/local/bin/arcmint-monitor
 
 ARG SERVICE_BIN
 ENV SERVICE_BIN=${SERVICE_BIN}

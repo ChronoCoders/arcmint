@@ -175,16 +175,19 @@ async fn main() {
         )
         .route(
             "/registry/spend",
-            post(registry_spend).route_layer(auth_layer),
+            post(registry_spend).route_layer(auth_layer.clone()),
         )
         .route("/registry/issued/:serial", get(registry_issued_get))
         .route("/registry/spent/:serial", get(registry_spent_get))
         .route("/audit", get(audit))
-        .route("/metrics", get(metrics))
+        .route("/metrics", get(metrics).route_layer(auth_layer))
         .route("/health", get(health))
         .with_state(app_state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let bind_host = env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let addr: SocketAddr = format!("{bind_host}:{port}")
+        .parse()
+        .expect("invalid BIND_ADDR");
     info!("starting federation signer on {addr} (mTLS enabled)");
 
     let listener = tokio::net::TcpListener::bind(addr)

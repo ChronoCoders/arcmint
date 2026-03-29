@@ -9,6 +9,7 @@ members = [
     "crates/arcmint-lnd",
     "crates/arcmint-adversary",
     "crates/arcmint-loadtest",
+    "crates/arcmint-monitor",
 ]
 resolver = "2"
 

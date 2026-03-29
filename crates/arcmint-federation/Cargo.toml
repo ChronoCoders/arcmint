@@ -30,6 +30,7 @@ hyper-util = { workspace = true }
  tracing-subscriber = { workspace = true }
  uuid = { workspace = true }
  zeroize = { workspace = true }
+ subtle = { workspace = true }
  reqwest = { workspace = true }
  hmac = { workspace = true }
  futures = { workspace = true }

@@ -39,7 +39,6 @@ impl LndTestClient {
 
         let client = Client::builder()
             .add_root_certificate(cert)
-            .danger_accept_invalid_certs(true) // For self-signed certs in tests
             .build()?;
 
         Ok(LndTestClient {

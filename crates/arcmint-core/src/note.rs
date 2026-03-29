@@ -21,6 +21,14 @@ pub struct NoteCommitmentData {
     pub denomination: u64,
     pub c_theta: GroupElement,
     pub pairs: Vec<CommitmentPair>,
+    /// Unix timestamp (seconds) when this note was issued by the coordinator.
+    /// Set to 0 by clients in the issuance request; filled in by the coordinator before signing.
+    #[serde(default)]
+    pub issued_at: i64,
+    /// Unix timestamp (seconds) after which this note is no longer valid for spending.
+    /// Set to 0 by clients in the issuance request; filled in by the coordinator before signing.
+    #[serde(default)]
+    pub expires_at: i64,
 }
 
 #[derive(Clone, Debug)]
@@ -122,6 +130,8 @@ where
         denomination,
         c_theta,
         pairs,
+        issued_at: 0,
+        expires_at: 0,
     };
 
     Ok(UnsignedNote {
