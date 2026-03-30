@@ -1,0 +1,85 @@
+---
+export interface Props {
+  title?: string;
+  description?: string;
+}
+const {
+  title = 'ArcMint — Private Bearer Notes for Bitcoin',
+  description = 'ArcMint is a federated e-cash protocol issuing cryptographic bearer notes backed by BTC. Privacy by design, accountability by math, Lightning-fast settlement.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#05070a" />
+
+    <!-- OG -->
+    <meta property="og:title"       content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type"        content="website" />
+    <meta property="og:url"         content="https://arcmint.io" />
+    <meta name="twitter:card"       content="summary_large_image" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <style is:global>
+      /* Force dark mode */
+      :root { color-scheme: dark; }
+    </style>
+  </head>
+
+  <body class="bg-bg-base text-text-primary">
+    <slot />
+
+    <!-- Scroll-triggered reveal animation driver -->
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((e) => {
+              if (e.isIntersecting) {
+                e.target.classList.add('visible');
+              }
+            });
+          },
+          { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+        );
+        document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
+
+        // Number counter for stats
+        document.querySelectorAll('[data-count]').forEach((el) => {
+          const target = parseInt(el.getAttribute('data-count') ?? '0', 10);
+          const suffix = el.getAttribute('data-suffix') ?? '';
+          let current = 0;
+          const step = Math.max(1, Math.floor(target / 40));
+          const timer = setInterval(() => {
+            current = Math.min(current + step, target);
+            el.textContent = current.toLocaleString() + suffix;
+            if (current >= target) clearInterval(timer);
+          }, 30);
+        });
+
+        // Mobile menu toggle
+        const menuBtn = document.getElementById('menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        menuBtn?.addEventListener('click', () => {
+          mobileMenu?.classList.toggle('hidden');
+        });
+      });
+    </script>
+  </body>
+</html>

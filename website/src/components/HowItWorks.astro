@@ -1,0 +1,150 @@
+---
+const steps = [
+  {
+    number: '01',
+    title: 'Register',
+    subtitle: 'Zero-knowledge identity',
+    description:
+      'Sample a secret identity scalar. Commit to it cryptographically. The federation registers your commitment — not your identity. You stay completely private to everyone except yourself.',
+    icon: `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" stroke="rgba(247,147,26,0.2)" stroke-width="1.5"/>
+      <circle cx="24" cy="19" r="7" stroke="#f7931a" stroke-width="2"/>
+      <path d="M10 40c0-7.732 6.268-14 14-14s14 6.268 14 14" stroke="#f7931a" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="24" cy="19" r="3" fill="#f7931a" opacity="0.4"/>
+    </svg>`,
+    color: '#f7931a',
+    detail: 'HMAC-bound token issued',
+  },
+  {
+    number: '02',
+    title: 'Issue',
+    subtitle: 'Threshold-signed bearer note',
+    description:
+      'Submit multiple note candidates. The federation challenges all but one using cut-and-choose. The survivor is threshold-signed by FROST signers. Your note is now a cryptographic bearer instrument.',
+    icon: `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" stroke="rgba(247,147,26,0.2)" stroke-width="1.5"/>
+      <rect x="12" y="14" width="24" height="20" rx="3" stroke="#f7931a" stroke-width="2"/>
+      <path d="M17 22h14M17 26h10" stroke="#f7931a" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="36" cy="14" r="6" fill="#f7931a"/>
+      <path d="M33 14l2 2 4-4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`,
+    color: '#f7931a',
+    detail: 'FROST 2-of-3 signature',
+  },
+  {
+    number: '03',
+    title: 'Spend',
+    subtitle: 'Anonymous proof of ownership',
+    description:
+      'Present your note to a merchant. Respond to a random challenge with a selective opening proof. Your identity is never revealed. Double-spend detection is cryptographic and automatic.',
+    icon: `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" stroke="rgba(247,147,26,0.2)" stroke-width="1.5"/>
+      <circle cx="24" cy="24" r="10" stroke="#f7931a" stroke-width="2"/>
+      <path d="M24 16v-4M24 36v-4M16 24h-4M36 24h-4" stroke="#f7931a" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="24" cy="24" r="4" fill="#f7931a" opacity="0.5"/>
+      <circle cx="24" cy="24" r="2" fill="#f7931a"/>
+    </svg>`,
+    color: '#f7931a',
+    detail: 'Pedersen binding proof',
+  },
+  {
+    number: '04',
+    title: 'Settle',
+    subtitle: 'Bitcoin-anchored, Lightning-fast',
+    description:
+      'Redemption via Lightning is instant. Every issuance and spend is Merkle-committed to Bitcoin every 10 minutes. Provably settled, publicly auditable — forever on-chain.',
+    icon: `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="24" cy="24" r="22" stroke="rgba(247,147,26,0.2)" stroke-width="1.5"/>
+      <path d="M24 10v6M24 32v6M10 24h6M32 24h6" stroke="#f7931a" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+      <path d="M20 18l-4 8h8l-4 12" stroke="#f7931a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="28" y="28" font-size="12" font-weight="bold" fill="#f7931a" font-family="serif">₿</text>
+    </svg>`,
+    color: '#f7931a',
+    detail: 'OP_RETURN Merkle anchor',
+  },
+];
+---
+
+<section id="how-it-works" class="relative py-28 overflow-hidden">
+  <!-- Background -->
+  <div class="absolute inset-0 bg-gradient-to-b from-bg-base via-bg-surface/30 to-bg-base pointer-events-none"></div>
+  <div class="orb w-[500px] h-[500px] bg-orange/5 top-0 left-1/2 -translate-x-1/2 pointer-events-none"></div>
+
+  <div class="relative z-10 max-w-6xl mx-auto px-6">
+
+    <!-- Heading -->
+    <div class="text-center mb-20 reveal">
+      <span class="section-eyebrow mb-4">Protocol</span>
+      <h2 class="mt-4 text-4xl sm:text-5xl font-black tracking-tight text-gradient-subtle">
+        How ArcMint Works
+      </h2>
+      <p class="mt-5 text-lg text-text-secondary max-w-xl mx-auto">
+        Four steps from Bitcoin to private e-cash — secured by mathematics, not trust.
+      </p>
+    </div>
+
+    <!-- Steps -->
+    <div class="relative">
+      <!-- Connector line (desktop) -->
+      <div class="hidden lg:block absolute top-14 left-[12.5%] right-[12.5%] h-px">
+        <div class="h-full bg-gradient-to-r from-transparent via-orange/30 to-transparent"></div>
+        <!-- Animated dot traveling along connector -->
+        <div class="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-orange shadow-orange-sm" style="animation: travel-line 4s ease-in-out infinite;">
+        </div>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-4">
+        {steps.map((step, i) => (
+          <div class={`reveal reveal-delay-${i + 1} flex flex-col`}>
+            <!-- Step card -->
+            <div class="card-glow rounded-2xl p-6 flex flex-col gap-4 h-full relative overflow-hidden group">
+              <!-- Top: number + icon -->
+              <div class="flex items-start justify-between">
+                <span class="text-xs font-mono font-bold text-orange/60 tracking-widest">{step.number}</span>
+                <div class="w-12 h-12 flex-shrink-0">
+                  <Fragment set:html={step.icon} />
+                </div>
+              </div>
+
+              <!-- Title -->
+              <div>
+                <h3 class="text-lg font-bold text-text-primary">{step.title}</h3>
+                <p class="text-xs text-orange mt-0.5 font-medium">{step.subtitle}</p>
+              </div>
+
+              <!-- Description -->
+              <p class="text-sm text-text-secondary leading-relaxed flex-1">{step.description}</p>
+
+              <!-- Detail badge -->
+              <div class="flex items-center gap-1.5 mt-auto pt-3 border-t border-bg-border">
+                <div class="w-1.5 h-1.5 rounded-full bg-orange flex-shrink-0"></div>
+                <span class="text-xs text-text-dim font-mono">{step.detail}</span>
+              </div>
+
+              <!-- Hover gradient overlay -->
+              <div class="absolute inset-0 bg-gradient-to-br from-orange/4 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Bottom note -->
+    <div class="reveal mt-12 text-center">
+      <p class="text-sm text-text-dim">
+        Double-spend detection is automatic — if a note is spent twice, the spender's identity is mathematically recovered.
+        <span class="text-orange"> No trusted party required.</span>
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<style>
+  @keyframes travel-line {
+    0%   { left: 0%;   opacity: 0; }
+    5%   { opacity: 1; }
+    95%  { opacity: 1; }
+    100% { left: 100%; opacity: 0; }
+  }
+</style>

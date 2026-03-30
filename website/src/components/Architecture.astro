@@ -1,0 +1,170 @@
+---
+---
+
+<section id="architecture" class="relative py-28 overflow-hidden">
+  <div class="absolute inset-0 bg-bg-surface/20 pointer-events-none"></div>
+  <div class="orb w-[700px] h-[500px] bg-orange/4 top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 pointer-events-none"></div>
+
+  <div class="relative z-10 max-w-6xl mx-auto px-6">
+
+    <!-- Heading -->
+    <div class="text-center mb-16 reveal">
+      <span class="section-eyebrow mb-4">Architecture</span>
+      <h2 class="mt-4 text-4xl sm:text-5xl font-black tracking-tight text-gradient-subtle">
+        A Federated Network<br/>
+        <span class="text-gradient">You Can Trust</span>
+      </h2>
+      <p class="mt-5 text-lg text-text-secondary max-w-2xl mx-auto">
+        ArcMint is built around a threshold federation where no single node has power.
+        All inter-service communication uses mutual TLS. Your notes are cryptographically secured end-to-end.
+      </p>
+    </div>
+
+    <div class="grid lg:grid-cols-2 gap-12 items-center">
+
+      <!-- Architecture diagram -->
+      <div class="reveal">
+        <div class="rounded-2xl border border-bg-border bg-bg-surface overflow-hidden">
+          <!-- Diagram header -->
+          <div class="flex items-center gap-2 px-5 py-4 border-b border-bg-border bg-bg-raised">
+            <div class="code-dot bg-red-500/70"></div>
+            <div class="code-dot bg-yellow-400/70"></div>
+            <div class="code-dot bg-green-400/70"></div>
+            <span class="ml-2 text-xs font-mono text-text-dim">arcmint-federation — docker-compose.yml</span>
+          </div>
+
+          <!-- SVG architecture diagram -->
+          <div class="p-6">
+            <svg viewBox="0 0 420 340" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full">
+              <defs>
+                <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="rgba(247,147,26,0.6)"/>
+                </marker>
+                <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="rgba(96,165,250,0.6)"/>
+                </marker>
+                <filter id="arch-glow">
+                  <feGaussianBlur stdDeviation="3" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+
+              <!-- User -->
+              <rect x="8" y="145" width="70" height="40" rx="8" fill="#131c2b" stroke="rgba(247,147,26,0.3)" stroke-width="1.5"/>
+              <text x="43" y="160" text-anchor="middle" font-size="9" fill="#7d8fa3" font-family="Inter, sans-serif">User</text>
+              <text x="43" y="173" text-anchor="middle" font-size="8" fill="#3d5066" font-family="JetBrains Mono, monospace">wallet CLI</text>
+
+              <!-- Arrow: User → Gateway -->
+              <path d="M79 165 L113 165" stroke="rgba(247,147,26,0.5)" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="4 3"/>
+
+              <!-- Gateway -->
+              <rect x="115" y="134" width="76" height="60" rx="8" fill="#131c2b" stroke="rgba(167,139,250,0.5)" stroke-width="1.5"/>
+              <text x="153" y="155" text-anchor="middle" font-size="9" fill="#a78bfa" font-weight="600" font-family="Inter, sans-serif">Gateway</text>
+              <text x="153" y="168" text-anchor="middle" font-size="8" fill="#3d5066" font-family="JetBrains Mono, monospace">:7002</text>
+              <text x="153" y="182" text-anchor="middle" font-size="7" fill="#3d5066" font-family="Inter, sans-serif">register / token</text>
+
+              <!-- mTLS badge -->
+              <rect x="122" y="195" width="62" height="16" rx="4" fill="rgba(167,139,250,0.1)" stroke="rgba(167,139,250,0.3)" stroke-width="0.5"/>
+              <text x="153" y="206" text-anchor="middle" font-size="7" fill="#a78bfa" font-family="Inter, sans-serif">mTLS</text>
+
+              <!-- Arrow: Gateway → Coordinator -->
+              <path d="M192 164 L222 164" stroke="rgba(247,147,26,0.5)" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+              <!-- Coordinator (center) -->
+              <rect x="224" y="110" width="88" height="110" rx="8" fill="#131c2b" stroke="rgba(247,147,26,0.5)" stroke-width="1.5" filter="url(#arch-glow)"/>
+              <text x="268" y="133" text-anchor="middle" font-size="9" fill="#f7931a" font-weight="700" font-family="Inter, sans-serif">Coordinator</text>
+              <text x="268" y="146" text-anchor="middle" font-size="8" fill="#3d5066" font-family="JetBrains Mono, monospace">:7000</text>
+              <line x1="232" y1="153" x2="304" y2="153" stroke="#1e2d3d" stroke-width="1"/>
+              <text x="268" y="166" text-anchor="middle" font-size="7" fill="#3d5066" font-family="Inter, sans-serif">issue / spend</text>
+              <text x="268" y="178" text-anchor="middle" font-size="7" fill="#3d5066" font-family="Inter, sans-serif">double-spend registry</text>
+              <text x="268" y="190" text-anchor="middle" font-size="7" fill="#3d5066" font-family="Inter, sans-serif">BTC anchoring</text>
+              <text x="268" y="204" text-anchor="middle" font-size="7" fill="#3d5066" font-family="Inter, sans-serif">key distribution</text>
+
+              <!-- Arrows: Coordinator → Signers -->
+              <path d="M312 135 L348 100" stroke="rgba(96,165,250,0.5)" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+              <path d="M312 165 L348 165" stroke="rgba(96,165,250,0.5)" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+              <path d="M312 195 L348 230" stroke="rgba(96,165,250,0.5)" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+              <!-- Signer 1 -->
+              <rect x="350" y="74" width="62" height="42" rx="8" fill="#131c2b" stroke="rgba(96,165,250,0.4)" stroke-width="1.5"/>
+              <text x="381" y="92" text-anchor="middle" font-size="9" fill="#60a5fa" font-weight="600" font-family="Inter, sans-serif">Signer 1</text>
+              <text x="381" y="104" text-anchor="middle" font-size="7" fill="#3d5066" font-family="JetBrains Mono, monospace">:7001</text>
+
+              <!-- Signer 2 -->
+              <rect x="350" y="144" width="62" height="42" rx="8" fill="#131c2b" stroke="rgba(96,165,250,0.4)" stroke-width="1.5"/>
+              <text x="381" y="162" text-anchor="middle" font-size="9" fill="#60a5fa" font-weight="600" font-family="Inter, sans-serif">Signer 2</text>
+              <text x="381" y="174" text-anchor="middle" font-size="7" fill="#3d5066" font-family="JetBrains Mono, monospace">:7002</text>
+
+              <!-- Signer 3 -->
+              <rect x="350" y="214" width="62" height="42" rx="8" fill="#131c2b" stroke="rgba(96,165,250,0.4)" stroke-width="1.5"/>
+              <text x="381" y="232" text-anchor="middle" font-size="9" fill="#60a5fa" font-weight="600" font-family="Inter, sans-serif">Signer 3</text>
+              <text x="381" y="244" text-anchor="middle" font-size="7" fill="#3d5066" font-family="JetBrains Mono, monospace">:7003</text>
+
+              <!-- Arrow: Coordinator → Merchant -->
+              <path d="M224 195 L192 225" stroke="rgba(52,211,153,0.5)" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+              <!-- Merchant -->
+              <rect x="115" y="214" width="76" height="60" rx="8" fill="#131c2b" stroke="rgba(52,211,153,0.5)" stroke-width="1.5"/>
+              <text x="153" y="235" text-anchor="middle" font-size="9" fill="#34d399" font-weight="600" font-family="Inter, sans-serif">Merchant</text>
+              <text x="153" y="248" text-anchor="middle" font-size="8" fill="#3d5066" font-family="JetBrains Mono, monospace">:7003</text>
+              <text x="153" y="262" text-anchor="middle" font-size="7" fill="#3d5066" font-family="Inter, sans-serif">note verify / spend</text>
+
+              <!-- Arrow: User → Merchant -->
+              <path d="M43 186 L43 244 L114 244" stroke="rgba(52,211,153,0.3)" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="4 3"/>
+
+              <!-- Bitcoin / LND layer -->
+              <rect x="8" y="294" width="404" height="36" rx="8" fill="rgba(247,147,26,0.05)" stroke="rgba(247,147,26,0.2)" stroke-width="1"/>
+              <text x="210" y="307" text-anchor="middle" font-size="8" fill="#f7931a" font-weight="600" font-family="Inter, sans-serif">Bitcoin Core (mainnet) + LND</text>
+              <text x="210" y="320" text-anchor="middle" font-size="7" fill="#3d5066" font-family="Inter, sans-serif">bitcoind :8332 · lnd :10009 · ZMQ :28332/28333 · OP_RETURN anchoring</text>
+
+              <!-- Arrows down to Bitcoin layer -->
+              <path d="M153 275 L153 293" stroke="rgba(247,147,26,0.2)" stroke-width="1" marker-end="url(#arrow)"/>
+              <path d="M268 221 L268 293" stroke="rgba(247,147,26,0.2)" stroke-width="1" marker-end="url(#arrow)"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: details -->
+      <div class="flex flex-col gap-6">
+        {[
+          {
+            title: 'Mutual TLS everywhere',
+            desc: 'Every service has its own certificate signed by a federation CA. Inter-service communication is fully authenticated and encrypted.',
+            icon: '🔐',
+            color: 'rgba(167,139,250,0.2)',
+          },
+          {
+            title: 'No coordinator trust',
+            desc: 'The coordinator orchestrates but cannot forge notes. FROST threshold signing requires quorum of independent signers.',
+            icon: '⚖️',
+            color: 'rgba(247,147,26,0.2)',
+          },
+          {
+            title: 'Atomic double-spend registry',
+            desc: 'SQLite WAL with BEGIN IMMEDIATE transactions ensures zero race conditions in the double-spend registry. PostgreSQL migration is in progress.',
+            icon: '🔗',
+            color: 'rgba(52,211,153,0.2)',
+          },
+          {
+            title: 'Docker Compose deployment',
+            desc: 'Full federation including Bitcoin Core, LND, and all services launches with a single command. Production-ready with env var secrets validation.',
+            icon: '🐳',
+            color: 'rgba(96,165,250,0.2)',
+          },
+        ].map((item, i) => (
+          <div class={`reveal reveal-delay-${i + 1} flex gap-4 p-5 rounded-xl border border-bg-border hover:border-orange/30 transition-colors group`}>
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0" style={`background: ${item.color};`}>
+              {item.icon}
+            </div>
+            <div>
+              <h4 class="font-semibold text-text-primary text-sm">{item.title}</h4>
+              <p class="text-xs text-text-secondary mt-1 leading-relaxed">{item.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  </div>
+</section>
