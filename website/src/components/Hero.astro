@@ -19,10 +19,9 @@
 
   <div class="relative z-10 max-w-6xl mx-auto px-6 py-20 grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
 
-    <!-- Left: copy — entry animations via CSS, not IntersectionObserver -->
+    <!-- Left: copy -->
     <div class="flex flex-col gap-8">
 
-      <!-- Eyebrow -->
       <div class="hero-enter" style="animation-delay:0.1s">
         <span class="section-eyebrow">
           <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
@@ -33,7 +32,6 @@
         </span>
       </div>
 
-      <!-- Headline -->
       <div class="hero-enter" style="animation-delay:0.25s">
         <h1 class="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight">
           Private<br/>
@@ -42,13 +40,11 @@
         </h1>
       </div>
 
-      <!-- Subtext -->
       <p class="hero-enter text-lg text-text-secondary leading-relaxed max-w-lg" style="animation-delay:0.45s">
         ArcMint issues cryptographic bearer notes backed by BTC — privately, with full accountability.
         No separate token. No custodial risk. Threshold-secured by a FROST federation, settled via Lightning.
       </p>
 
-      <!-- CTAs -->
       <div class="hero-enter flex flex-wrap items-center gap-4" style="animation-delay:0.6s">
         <a href="/arcmint.pdf" target="_blank" rel="noopener" class="btn-primary">
           Read the Paper
@@ -64,7 +60,6 @@
         </a>
       </div>
 
-      <!-- Stats row -->
       <div class="hero-enter grid grid-cols-3 gap-4 pt-4 border-t border-bg-border" style="animation-delay:0.75s">
         <div>
           <div class="text-2xl font-bold text-text-primary tabular-nums">2-of-3</div>
@@ -81,179 +76,181 @@
       </div>
     </div>
 
-    <!-- Right: animated federation network SVG -->
+    <!-- Right: threshold signature assembly -->
     <div class="hero-enter flex items-center justify-center lg:justify-end" style="animation-delay:0.35s">
-      <div class="relative w-full max-w-[500px] diagram-float">
+      <div class="relative w-full max-w-[480px] diagram-float">
 
-        <!-- Outer glow blob -->
         <div class="absolute inset-0 rounded-full diagram-glow pointer-events-none"></div>
 
-        <!--
-          SVG uses both href and xlink:href on mpath for cross-browser support.
-          Pulse dots travel along <path> elements defined in <defs>.
-        -->
         <svg
-          viewBox="0 30 500 340"
+          viewBox="0 0 500 410"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           xmlns:xlink="http://www.w3.org/1999/xlink"
           class="w-full drop-shadow-2xl"
-          style="margin-bottom: -4px;"
         >
           <defs>
-            <filter id="coord-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="8" result="blur"/>
+            <filter id="glow-center" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="10" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glow-dot" x="-100%" y="-100%" width="300%" height="300%">
+              <feGaussianBlur stdDeviation="4" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glow-node" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="6" result="blur"/>
               <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
             </filter>
 
-            <linearGradient id="lg-v" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="#f7931a" stop-opacity="0.7"/>
-              <stop offset="100%" stop-color="#f7931a" stop-opacity="0.1"/>
+            <!-- Line gradients: signer color → orange at center -->
+            <linearGradient id="lg-s1" x1="250" y1="50" x2="250" y2="200" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#60a5fa"/>
+              <stop offset="100%" stop-color="#f7931a"/>
             </linearGradient>
-            <linearGradient id="lg-r" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#f7931a" stop-opacity="0.6"/>
-              <stop offset="100%" stop-color="#f7931a" stop-opacity="0.1"/>
-            </linearGradient>
-            <linearGradient id="lg-l" x1="100%" y1="0%" x2="0%" y2="0%">
-              <stop offset="0%" stop-color="#f7931a" stop-opacity="0.6"/>
-              <stop offset="100%" stop-color="#f7931a" stop-opacity="0.1"/>
-            </linearGradient>
-            <linearGradient id="cg" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#f7931a"/>
-              <stop offset="100%" stop-color="#e8650a"/>
+            <linearGradient id="lg-s2" x1="380" y1="275" x2="250" y2="200" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#60a5fa"/>
+              <stop offset="100%" stop-color="#f7931a"/>
             </linearGradient>
 
-            <!-- Motion paths -->
-            <path id="mp-s1" d="M250,220 L250,100"/>
-            <path id="mp-s2" d="M250,220 L390,320"/>
-            <path id="mp-s3" d="M250,220 L110,320"/>
-            <path id="mp-gw" d="M250,220 L100,180"/>
-            <path id="mp-me" d="M250,220 L400,180"/>
-            <path id="mp-u"  d="M50,260 L100,180"/>
+            <!-- Center fill gradient -->
+            <radialGradient id="center-fill" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffb347"/>
+              <stop offset="100%" stop-color="#e8650a"/>
+            </radialGradient>
+
+            <!-- Motion paths: S1 and S2 → center -->
+            <path id="mp-s1" d="M250,50 L250,200"/>
+            <path id="mp-s2" d="M380,275 L250,200"/>
           </defs>
 
-          <!-- ── Connection lines ── -->
-          <line x1="250" y1="220" x2="250" y2="100"  stroke="url(#lg-v)" stroke-width="1.5" stroke-dasharray="6 4"/>
-          <line x1="250" y1="220" x2="390" y2="320"  stroke="url(#lg-r)" stroke-width="1.5" stroke-dasharray="6 4"/>
-          <line x1="250" y1="220" x2="110" y2="320"  stroke="url(#lg-l)" stroke-width="1.5" stroke-dasharray="6 4"/>
-          <line x1="250" y1="220" x2="100" y2="180"  stroke="rgba(247,147,26,0.35)" stroke-width="1.5"/>
-          <line x1="250" y1="220" x2="400" y2="180"  stroke="rgba(247,147,26,0.35)" stroke-width="1.5"/>
-          <line x1="50"  y1="260" x2="100" y2="180"  stroke="rgba(247,147,26,0.2)"  stroke-width="1.5" stroke-dasharray="4 4"/>
+          <!-- ── Outer orbit ring ── -->
+          <circle cx="250" cy="200" r="152" stroke="rgba(247,147,26,0.07)" stroke-width="1" stroke-dasharray="6 5" class="orbit-ring"/>
 
-          <!-- ── Pulse dots ── -->
-          <!-- Coord → Signer 1 (×2) -->
-          <circle r="3" fill="#f7931a" opacity="0.9">
+          <!-- ── Inner triangle connector lines ── -->
+          <!-- S1 active: animated glow pulse -->
+          <line x1="250" y1="50" x2="250" y2="200" stroke="url(#lg-s1)" stroke-width="1.5" class="line-active"/>
+          <!-- S2 active -->
+          <line x1="380" y1="275" x2="250" y2="200" stroke="url(#lg-s2)" stroke-width="1.5" class="line-active" style="animation-delay:0.3s"/>
+          <!-- S3 inactive: dim dashed -->
+          <line x1="120" y1="275" x2="250" y2="200" stroke="rgba(96,165,250,0.12)" stroke-width="1" stroke-dasharray="5 4"/>
+
+          <!-- ── Partial signature labels on active lines ── -->
+          <text x="250" y="123" text-anchor="middle" font-size="11" fill="#60a5fa" font-family="JetBrains Mono, monospace" font-weight="500" class="sigma-label">σ₁</text>
+          <text x="322" y="232" text-anchor="middle" font-size="11" fill="#60a5fa" font-family="JetBrains Mono, monospace" font-weight="500" class="sigma-label" style="animation-delay:0.4s">σ₂</text>
+
+          <!-- ── Traveling partial-sig dots: S1 → center ── -->
+          <circle r="4.5" fill="#f7931a" filter="url(#glow-dot)">
             <animateMotion dur="2.4s" repeatCount="indefinite" begin="0s">
               <mpath xlink:href="#mp-s1" href="#mp-s1"/>
             </animateMotion>
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.92;1" dur="2.4s" repeatCount="indefinite" begin="0s"/>
           </circle>
-          <circle r="3" fill="#f7931a" opacity="0.9">
+          <circle r="4.5" fill="#f7931a" filter="url(#glow-dot)">
             <animateMotion dur="2.4s" repeatCount="indefinite" begin="1.2s">
               <mpath xlink:href="#mp-s1" href="#mp-s1"/>
             </animateMotion>
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.92;1" dur="2.4s" repeatCount="indefinite" begin="1.2s"/>
           </circle>
 
-          <!-- Coord → Signer 2 -->
-          <circle r="3" fill="#60a5fa" opacity="0.9">
-            <animateMotion dur="2.8s" repeatCount="indefinite" begin="0.4s">
+          <!-- ── Traveling partial-sig dots: S2 → center ── -->
+          <circle r="4.5" fill="#f7931a" filter="url(#glow-dot)">
+            <animateMotion dur="2.7s" repeatCount="indefinite" begin="0.4s">
               <mpath xlink:href="#mp-s2" href="#mp-s2"/>
             </animateMotion>
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.92;1" dur="2.7s" repeatCount="indefinite" begin="0.4s"/>
           </circle>
-
-          <!-- Coord → Signer 3 -->
-          <circle r="3" fill="#60a5fa" opacity="0.9">
-            <animateMotion dur="2.8s" repeatCount="indefinite" begin="0.9s">
-              <mpath xlink:href="#mp-s3" href="#mp-s3"/>
+          <circle r="4.5" fill="#f7931a" filter="url(#glow-dot)">
+            <animateMotion dur="2.7s" repeatCount="indefinite" begin="1.75s">
+              <mpath xlink:href="#mp-s2" href="#mp-s2"/>
             </animateMotion>
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.92;1" dur="2.7s" repeatCount="indefinite" begin="1.75s"/>
           </circle>
 
-          <!-- Gateway → Coord (reverse) -->
-          <circle r="3" fill="#a78bfa" opacity="0.85">
-            <animateMotion dur="2s" repeatCount="indefinite" begin="0.6s"
-              keyPoints="1;0" keyTimes="0;1" calcMode="linear">
-              <mpath xlink:href="#mp-gw" href="#mp-gw"/>
-            </animateMotion>
+          <!-- ── Center: FROST Signing Chamber ── -->
+          <!-- Outer pulsing glow ring -->
+          <circle cx="250" cy="200" r="52" fill="rgba(247,147,26,0.07)">
+            <animate attributeName="r"       values="48;56;48"   dur="2.8s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.4;0.9;0.4" dur="2.8s" repeatCount="indefinite"/>
           </circle>
+          <!-- Middle ring -->
+          <circle cx="250" cy="200" r="40" fill="rgba(247,147,26,0.12)" filter="url(#glow-center)">
+            <animate attributeName="opacity" values="0.6;1;0.6" dur="2.8s" repeatCount="indefinite"/>
+          </circle>
+          <!-- Main filled circle -->
+          <circle cx="250" cy="200" r="36" fill="url(#center-fill)"/>
+          <circle cx="250" cy="200" r="36" fill="none" stroke="rgba(247,147,26,0.7)" stroke-width="1.5"/>
 
-          <!-- Coord → Merchant -->
-          <circle r="3" fill="#f7931a" opacity="0.85">
-            <animateMotion dur="2s" repeatCount="indefinite" begin="1s">
-              <mpath xlink:href="#mp-me" href="#mp-me"/>
-            </animateMotion>
-          </circle>
-
-          <!-- User → Gateway -->
-          <circle r="2.5" fill="#a78bfa" opacity="0.9">
-            <animateMotion dur="1.6s" repeatCount="indefinite" begin="0.2s">
-              <mpath xlink:href="#mp-u" href="#mp-u"/>
-            </animateMotion>
-          </circle>
-
-          <!-- ── Coordinator (center) ── -->
-          <!-- Glow ring: SVG-native opacity animation, no CSS transform -->
-          <circle cx="250" cy="220" r="46" fill="rgba(247,147,26,0.07)">
-            <animate attributeName="opacity" values="0.4;0.9;0.4" dur="3s" repeatCount="indefinite"/>
-            <animate attributeName="r"       values="44;50;44"     dur="3s" repeatCount="indefinite"/>
-          </circle>
-          <circle cx="250" cy="220" r="30" fill="url(#cg)" filter="url(#coord-glow)"/>
-          <circle cx="250" cy="220" r="30" fill="none" stroke="rgba(247,147,26,0.5)" stroke-width="1"/>
-          <!-- ArcMint logo mark instead of ₿ -->
-          <g transform="translate(237,208)">
-            <!-- Arch pillars -->
-            <rect x="2"  y="14" width="5" height="11" rx="2.5" fill="white"/>
-            <rect x="19" y="14" width="5" height="11" rx="2.5" fill="white"/>
-            <!-- Arch curve -->
-            <path d="M2 16 Q2 4 13.5 4 Q25 4 25 16" stroke="white" stroke-width="3.5" stroke-linecap="round" fill="none"/>
-            <!-- Note dot -->
-            <circle cx="13.5" cy="5.5" r="3" fill="white" opacity="0.9"/>
+          <!-- ArcMint arch logo mark -->
+          <g transform="translate(236,187)">
+            <rect x="2"  y="14" width="5"  height="11" rx="2.5" fill="white"/>
+            <rect x="21" y="14" width="5"  height="11" rx="2.5" fill="white"/>
+            <path d="M2 16 Q2 3 14 3 Q26 3 26 16" stroke="white" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+            <circle cx="14" cy="4.5" r="3" fill="white" opacity="0.9"/>
           </g>
-          <text x="250" y="272" text-anchor="middle" font-size="11" fill="#f7931a" font-weight="600" font-family="Inter, sans-serif">Coordinator</text>
 
-          <!-- ── Signer 1 (top) ── -->
-          <circle cx="250" cy="100" r="22" fill="rgba(96,165,250,0.08)"/>
-          <circle cx="250" cy="100" r="16" fill="#1e3a5f"/>
-          <circle cx="250" cy="100" r="16" fill="none" stroke="#60a5fa" stroke-width="1.5"/>
-          <text x="250" y="105" text-anchor="middle" font-size="13" fill="#60a5fa" font-weight="700" font-family="Inter, sans-serif">S1</text>
-          <text x="250" y="130" text-anchor="middle" font-size="10" fill="#7d8fa3" font-family="Inter, sans-serif">Signer 1</text>
+          <text x="250" y="256" text-anchor="middle" font-size="11" fill="#f7931a" font-weight="700" font-family="Inter, sans-serif" letter-spacing="0.03em">FROST Coordinator</text>
 
-          <!-- ── Signer 2 (bottom right) ── -->
-          <circle cx="390" cy="320" r="22" fill="rgba(96,165,250,0.08)"/>
-          <circle cx="390" cy="320" r="16" fill="#1e3a5f"/>
-          <circle cx="390" cy="320" r="16" fill="none" stroke="#60a5fa" stroke-width="1.5"/>
-          <text x="390" y="325" text-anchor="middle" font-size="13" fill="#60a5fa" font-weight="700" font-family="Inter, sans-serif">S2</text>
-          <text x="390" y="351" text-anchor="middle" font-size="10" fill="#7d8fa3" font-family="Inter, sans-serif">Signer 2</text>
+          <!-- ── 2-of-3 threshold badge ── -->
+          <rect x="188" y="268" width="124" height="24" rx="12" fill="rgba(247,147,26,0.1)" stroke="rgba(247,147,26,0.35)" stroke-width="1"/>
+          <text x="250" y="284" text-anchor="middle" font-size="10.5" fill="#f7931a" font-weight="600" font-family="Inter, sans-serif">2-of-3 threshold met</text>
 
-          <!-- ── Signer 3 (bottom left) ── -->
-          <circle cx="110" cy="320" r="22" fill="rgba(96,165,250,0.08)"/>
-          <circle cx="110" cy="320" r="16" fill="#1e3a5f"/>
-          <circle cx="110" cy="320" r="16" fill="none" stroke="#60a5fa" stroke-width="1.5"/>
-          <text x="110" y="325" text-anchor="middle" font-size="13" fill="#60a5fa" font-weight="700" font-family="Inter, sans-serif">S3</text>
-          <text x="110" y="351" text-anchor="middle" font-size="10" fill="#7d8fa3" font-family="Inter, sans-serif">Signer 3</text>
+          <!-- ── Signer 1 — top, active ── -->
+          <circle cx="250" cy="50" r="30" fill="rgba(96,165,250,0.06)" filter="url(#glow-node)">
+            <animate attributeName="r"       values="26;33;26"   dur="2.5s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.3;0.7;0.3" dur="2.5s" repeatCount="indefinite"/>
+          </circle>
+          <circle cx="250" cy="50" r="22" fill="#0b1929"/>
+          <circle cx="250" cy="50" r="22" fill="none" stroke="#60a5fa" stroke-width="2"/>
+          <!-- Key icon -->
+          <g transform="translate(239,39)">
+            <circle cx="7" cy="7" r="4.5" fill="none" stroke="#60a5fa" stroke-width="1.8"/>
+            <line x1="10" y1="10" x2="15" y2="15" stroke="#60a5fa" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="13.5" y1="13.5" x2="13.5" y2="16.5" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="15" y1="15" x2="15" y2="18" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/>
+          </g>
+          <!-- Active badge -->
+          <circle cx="266" cy="35" r="6" fill="#34d399"/>
+          <text x="266" y="39.5" text-anchor="middle" font-size="8.5" fill="white" font-weight="800" font-family="Inter, sans-serif">✓</text>
+          <text x="250" y="86" text-anchor="middle" font-size="11" fill="#60a5fa" font-weight="600" font-family="Inter, sans-serif">Signer 1</text>
 
-          <!-- ── Gateway (left) ── -->
-          <circle cx="100" cy="180" r="20" fill="rgba(167,139,250,0.08)"/>
-          <circle cx="100" cy="180" r="14" fill="#1e1b3a"/>
-          <circle cx="100" cy="180" r="14" fill="none" stroke="#a78bfa" stroke-width="1.5"/>
-          <text x="100" y="185" text-anchor="middle" font-size="10" fill="#a78bfa" font-weight="700" font-family="Inter, sans-serif">GW</text>
-          <text x="100" y="208" text-anchor="middle" font-size="10" fill="#7d8fa3" font-family="Inter, sans-serif">Gateway</text>
+          <!-- ── Signer 2 — bottom-right, active ── -->
+          <circle cx="380" cy="275" r="30" fill="rgba(96,165,250,0.06)" filter="url(#glow-node)">
+            <animate attributeName="r"       values="26;33;26"   dur="2.9s" repeatCount="indefinite" begin="0.5s"/>
+            <animate attributeName="opacity" values="0.3;0.7;0.3" dur="2.9s" repeatCount="indefinite" begin="0.5s"/>
+          </circle>
+          <circle cx="380" cy="275" r="22" fill="#0b1929"/>
+          <circle cx="380" cy="275" r="22" fill="none" stroke="#60a5fa" stroke-width="2"/>
+          <g transform="translate(369,264)">
+            <circle cx="7" cy="7" r="4.5" fill="none" stroke="#60a5fa" stroke-width="1.8"/>
+            <line x1="10" y1="10" x2="15" y2="15" stroke="#60a5fa" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="13.5" y1="13.5" x2="13.5" y2="16.5" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="15" y1="15" x2="15" y2="18" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"/>
+          </g>
+          <circle cx="396" cy="260" r="6" fill="#34d399"/>
+          <text x="396" y="264.5" text-anchor="middle" font-size="8.5" fill="white" font-weight="800" font-family="Inter, sans-serif">✓</text>
+          <text x="380" y="311" text-anchor="middle" font-size="11" fill="#60a5fa" font-weight="600" font-family="Inter, sans-serif">Signer 2</text>
 
-          <!-- ── Merchant (right) ── -->
-          <circle cx="400" cy="180" r="20" fill="rgba(52,211,153,0.08)"/>
-          <circle cx="400" cy="180" r="14" fill="#0d2b1f"/>
-          <circle cx="400" cy="180" r="14" fill="none" stroke="#34d399" stroke-width="1.5"/>
-          <text x="400" y="185" text-anchor="middle" font-size="10" fill="#34d399" font-weight="700" font-family="Inter, sans-serif">ME</text>
-          <text x="400" y="208" text-anchor="middle" font-size="10" fill="#7d8fa3" font-family="Inter, sans-serif">Merchant</text>
+          <!-- ── Signer 3 — bottom-left, standby (not needed) ── -->
+          <circle cx="120" cy="275" r="22" fill="#08101a"/>
+          <circle cx="120" cy="275" r="22" fill="none" stroke="#2a3a4d" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <g transform="translate(109,264)" opacity="0.35">
+            <circle cx="7" cy="7" r="4.5" fill="none" stroke="#4a6070" stroke-width="1.8"/>
+            <line x1="10" y1="10" x2="15" y2="15" stroke="#4a6070" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="13.5" y1="13.5" x2="13.5" y2="16.5" stroke="#4a6070" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="15" y1="15" x2="15" y2="18" stroke="#4a6070" stroke-width="1.5" stroke-linecap="round"/>
+          </g>
+          <text x="120" y="311" text-anchor="middle" font-size="11" fill="#3a4f62" font-weight="500" font-family="Inter, sans-serif">Signer 3</text>
+          <text x="120" y="326" text-anchor="middle" font-size="9.5" fill="#2d3f50" font-family="Inter, sans-serif">standby</text>
 
-          <!-- ── User (far left) ── -->
-          <circle cx="50" cy="260" r="18" fill="rgba(247,147,26,0.06)"/>
-          <circle cx="50" cy="260" r="12" fill="#1c1208"/>
-          <circle cx="50" cy="260" r="12" fill="none" stroke="rgba(247,147,26,0.5)" stroke-width="1.5" stroke-dasharray="3 2"/>
-          <text x="50" y="265" text-anchor="middle" font-size="9" fill="#f7931a" font-weight="700" font-family="Inter, sans-serif">USR</text>
-          <text x="50" y="288" text-anchor="middle" font-size="10" fill="#7d8fa3" font-family="Inter, sans-serif">User</text>
+          <!-- ── Triangle edges between signers (very subtle) ── -->
+          <line x1="250" y1="72" x2="362" y2="257" stroke="rgba(96,165,250,0.06)" stroke-width="1"/>
+          <line x1="250" y1="72" x2="138" y2="257" stroke="rgba(96,165,250,0.06)" stroke-width="1"/>
+          <line x1="142" y1="275" x2="358" y2="275" stroke="rgba(96,165,250,0.06)" stroke-width="1"/>
 
         </svg>
 
-        <!-- Badge — top-left, clear of all SVG content -->
+        <!-- Badge -->
         <div class="absolute top-2 left-2 badge badge-green text-xs shadow-lg">
           <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
@@ -274,30 +271,20 @@
 </section>
 
 <style>
-  /* ── Hero-specific entry animation (CSS-driven, no IntersectionObserver) ── */
+  /* ── Hero entry animation ── */
   .hero-enter {
     opacity: 0;
     transform: translateY(20px);
     animation: hero-enter 0.7s ease-out forwards;
   }
-
   @keyframes hero-enter {
     to { opacity: 1; transform: translateY(0); }
   }
 
   /* ── Orbs ── */
-  .hero-orb-1 {
-    background: rgba(247,147,26,0.10);
-    animation: float 9s ease-in-out 1s infinite;
-  }
-  .hero-orb-2 {
-    background: rgba(247,147,26,0.07);
-    animation: float 6s ease-in-out infinite;
-  }
-  .hero-orb-3 {
-    background: rgba(59,130,246,0.05);
-    animation: float 6s ease-in-out 2s infinite;
-  }
+  .hero-orb-1 { background: rgba(247,147,26,0.10); animation: float 9s ease-in-out 1s infinite; }
+  .hero-orb-2 { background: rgba(247,147,26,0.07); animation: float 6s ease-in-out infinite; }
+  .hero-orb-3 { background: rgba(59,130,246,0.05);  animation: float 6s ease-in-out 2s infinite; }
 
   @keyframes float {
     0%, 100% { transform: translateY(0); }
@@ -305,9 +292,7 @@
   }
 
   /* ── Diagram float ── */
-  .diagram-float {
-    animation: float 7s ease-in-out 0.5s infinite;
-  }
+  .diagram-float { animation: float 7s ease-in-out 0.5s infinite; }
 
   /* ── Diagram glow blob ── */
   .diagram-glow {
@@ -315,9 +300,37 @@
     filter: blur(60px);
     animation: glow-pulse 4s ease-in-out infinite;
   }
-
   @keyframes glow-pulse {
     0%, 100% { opacity: 0.5; }
     50%       { opacity: 1; }
+  }
+
+  /* ── Orbit ring slow rotation ── */
+  .orbit-ring {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: orbit-spin 30s linear infinite;
+  }
+  @keyframes orbit-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* ── Active signer lines glow pulse ── */
+  .line-active {
+    animation: line-glow 2.5s ease-in-out infinite;
+  }
+  @keyframes line-glow {
+    0%, 100% { opacity: 0.4; }
+    50%       { opacity: 1; }
+  }
+
+  /* ── Partial sig labels fade pulse ── */
+  .sigma-label {
+    animation: sigma-pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes sigma-pulse {
+    0%, 100% { opacity: 0.3; }
+    50%       { opacity: 0.9; }
   }
 </style>
