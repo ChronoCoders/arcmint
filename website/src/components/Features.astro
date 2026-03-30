@@ -1,0 +1,157 @@
+---
+const features = [
+  {
+    title: 'Threshold Signing',
+    description: 'FROST 2-of-3 signatures across an independent federation. No single party can forge, censor, or selectively block notes. Quorum compromise is required to break security.',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-6 h-6">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
+    </svg>`,
+    color: 'orange',
+    tag: 'FROST',
+    large: true,
+  },
+  {
+    title: 'Cryptographic Privacy',
+    description: 'Pedersen commitments and selective opening proofs mean merchants learn only that a note is valid — nothing about who is spending it.',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-6 h-6">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>
+    </svg>`,
+    color: 'blue',
+    tag: 'Blind',
+  },
+  {
+    title: 'Bitcoin Native',
+    description: 'Notes are directly redeemable for BTC. No wrapped token, no bridge, no custodian. The value is always Bitcoin.',
+    icon: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+      <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/>
+    </svg>`,
+    color: 'orange',
+    tag: 'BTC only',
+  },
+  {
+    title: 'Lightning Settlement',
+    description: 'Instant redemption via LND. Sub-second payment confirmation, full HTLC security, and native Lightning routing.',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-6 h-6">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
+    </svg>`,
+    color: 'yellow',
+    tag: 'Instant',
+  },
+  {
+    title: 'Accountable Anonymity',
+    description: 'Unique to ArcMint: double-spenders are automatically and mathematically identified — without compromising honest users. Accountability without surveillance.',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-6 h-6">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/>
+    </svg>`,
+    color: 'green',
+    tag: 'Novel',
+    large: true,
+  },
+  {
+    title: 'Bitcoin Anchoring',
+    description: 'Merkle roots of all issued and spent note serials are committed to Bitcoin via OP_RETURN every 10 minutes. Fully auditable.',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-6 h-6">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/>
+    </svg>`,
+    color: 'orange',
+    tag: 'OP_RETURN',
+  },
+];
+
+const colorMap = {
+  orange: {
+    bg:     'rgba(247,147,26,0.08)',
+    icon:   '#f7931a',
+    border: 'rgba(247,147,26,0.4)',
+    tag:    'bg-orange/10 text-orange border-orange/30',
+  },
+  blue: {
+    bg:     'rgba(96,165,250,0.08)',
+    icon:   '#60a5fa',
+    border: 'rgba(96,165,250,0.4)',
+    tag:    'bg-blue-500/10 text-blue-400 border-blue-400/30',
+  },
+  yellow: {
+    bg:     'rgba(250,204,21,0.08)',
+    icon:   '#facc15',
+    border: 'rgba(250,204,21,0.4)',
+    tag:    'bg-yellow-400/10 text-yellow-400 border-yellow-400/30',
+  },
+  green: {
+    bg:     'rgba(52,211,153,0.08)',
+    icon:   '#34d399',
+    border: 'rgba(52,211,153,0.4)',
+    tag:    'bg-emerald-500/10 text-emerald-400 border-emerald-400/30',
+  },
+};
+---
+
+<section id="features" class="relative py-28 overflow-hidden">
+  <div class="absolute inset-0 bg-gradient-to-b from-bg-base to-bg-surface/20 pointer-events-none"></div>
+  <div class="orb w-[600px] h-[400px] bg-blue-500/4 bottom-0 right-0 pointer-events-none"></div>
+
+  <div class="relative z-10 max-w-6xl mx-auto px-6">
+
+    <!-- Heading -->
+    <div class="text-center mb-16 reveal">
+      <span class="section-eyebrow mb-4">Features</span>
+      <h2 class="mt-4 text-4xl sm:text-5xl font-black tracking-tight text-gradient-subtle">
+        Built for Institutions,<br/>
+        <span class="text-gradient">Secured by Mathematics</span>
+      </h2>
+      <p class="mt-5 text-lg text-text-secondary max-w-2xl mx-auto">
+        Every component of ArcMint is designed with an institutional-grade threat model in mind.
+        No shortcuts, no trusted parties, no extra tokens.
+      </p>
+    </div>
+
+    <!-- Feature grid -->
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {features.map((f, i) => {
+        const c = colorMap[f.color] ?? colorMap['orange'];
+        return (
+          <div class={`reveal reveal-delay-${(i % 4) + 1} card-glow rounded-2xl p-6 flex flex-col gap-4 relative overflow-hidden group ${f.large ? 'md:col-span-1' : ''}`}>
+            <!-- Icon container -->
+            <div class="flex items-start justify-between">
+              <div
+                class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={`background: ${c.bg}; color: ${c.icon};`}
+              >
+                <Fragment set:html={f.icon} />
+              </div>
+              <span class={`badge text-xs ${c.tag}`}>{f.tag}</span>
+            </div>
+
+            <!-- Title -->
+            <h3 class="text-base font-bold text-text-primary">{f.title}</h3>
+
+            <!-- Description -->
+            <p class="text-sm text-text-secondary leading-relaxed flex-1">{f.description}</p>
+
+            <!-- Bottom accent bar -->
+            <div
+              class="absolute bottom-0 left-0 right-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+              style={`background: linear-gradient(90deg, transparent, ${c.icon}, transparent);`}
+            ></div>
+          </div>
+        );
+      })}
+    </div>
+
+    <!-- Stats banner -->
+    <div class="reveal mt-12 grid sm:grid-cols-3 gap-4">
+      {[
+        { value: '2-of-3', label: 'FROST threshold minimum', sub: 'upgradeable to 3-of-5' },
+        { value: '90 days', label: 'Note validity window', sub: 'reissuance protocol included' },
+        { value: 'OP_RETURN', label: 'Bitcoin anchoring', sub: 'every 600 seconds' },
+      ].map((stat) => (
+        <div class="rounded-2xl border border-bg-border bg-bg-surface/50 p-6 text-center">
+          <div class="text-2xl font-black text-gradient">{stat.value}</div>
+          <div class="text-sm font-semibold text-text-primary mt-1">{stat.label}</div>
+          <div class="text-xs text-text-dim mt-0.5">{stat.sub}</div>
+        </div>
+      ))}
+    </div>
+
+  </div>
+</section>

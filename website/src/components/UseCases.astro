@@ -1,0 +1,117 @@
+---
+const cases = [
+  {
+    title: 'OTC Desk Settlement',
+    description:
+      'Transfer large Bitcoin values between counterparties with full privacy and instant confirmation. No transaction graph. No exposure to block timing.',
+    detail:
+      'Notes are threshold-signed and bearer — hand them off like physical cash, but with cryptographic guarantees neither party can forge.',
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="32" cy="32" r="30" stroke="rgba(247,147,26,0.15)" stroke-width="1.5"/>
+      <path d="M20 32h24M36 26l6 6-6 6" stroke="#f7931a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="12" y="22" width="16" height="20" rx="4" fill="rgba(247,147,26,0.1)" stroke="rgba(247,147,26,0.3)" stroke-width="1.5"/>
+      <rect x="36" y="22" width="16" height="20" rx="4" fill="rgba(247,147,26,0.1)" stroke="rgba(247,147,26,0.3)" stroke-width="1.5"/>
+      <text x="20" y="35" text-anchor="middle" font-size="10" fill="#f7931a" font-family="serif">₿</text>
+      <text x="44" y="35" text-anchor="middle" font-size="10" fill="#f7931a" font-family="serif">₿</text>
+    </svg>`,
+    metric: '< 1s',
+    metricLabel: 'settlement time',
+    tag: 'Institutional',
+    tagColor: 'orange',
+  },
+  {
+    title: 'Institutional Clearing',
+    description:
+      "Multi-party settlement across desks or entities without any party learning the counterparty's position, timing, or volume.",
+    detail:
+      'The federation holds no value — it only signs. Clearing happens at the cryptographic layer, not via an intermediary custodian.',
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="32" cy="32" r="30" stroke="rgba(96,165,250,0.15)" stroke-width="1.5"/>
+      <circle cx="32" cy="32" r="12" stroke="#60a5fa" stroke-width="1.5"/>
+      <circle cx="16" cy="24" r="6" fill="rgba(96,165,250,0.1)" stroke="#60a5fa" stroke-width="1.5"/>
+      <circle cx="48" cy="24" r="6" fill="rgba(96,165,250,0.1)" stroke="#60a5fa" stroke-width="1.5"/>
+      <circle cx="32" cy="50" r="6" fill="rgba(96,165,250,0.1)" stroke="#60a5fa" stroke-width="1.5"/>
+      <path d="M22 24 L26 28M42 24 L38 28M32 38 L32 44" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="3 2"/>
+    </svg>`,
+    metric: '2-of-3',
+    metricLabel: 'minimum threshold',
+    tag: 'Multi-party',
+    tagColor: 'blue',
+  },
+  {
+    title: 'Private Merchant Payments',
+    description:
+      'Accept Bitcoin privately. Verify notes cryptographically without learning anything about who is spending — just that they can.',
+    detail:
+      'Merchants receive standard Lightning payments. The privacy layer is transparent to their stack — just a faster, cheaper, more private input.',
+    icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="32" cy="32" r="30" stroke="rgba(52,211,153,0.15)" stroke-width="1.5"/>
+      <rect x="16" y="20" width="32" height="24" rx="5" fill="rgba(52,211,153,0.08)" stroke="#34d399" stroke-width="1.5"/>
+      <path d="M22 32h8M36 28l4 4-4 4" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16 28h32" stroke="#34d399" stroke-width="1" opacity="0.3"/>
+      <path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" fill="#34d399" transform="translate(26 36) scale(0.6)" opacity="0.7"/>
+    </svg>`,
+    metric: '₿ only',
+    metricLabel: 'no side tokens',
+    tag: 'Lightning',
+    tagColor: 'green',
+  },
+];
+
+const tagColors = {
+  orange: 'bg-orange/10 text-orange border-orange/30',
+  blue:   'bg-blue-500/10 text-blue-400 border-blue-400/30',
+  green:  'bg-emerald-500/10 text-emerald-400 border-emerald-400/30',
+};
+---
+
+<section id="use-cases" class="relative py-28 overflow-hidden">
+  <div class="absolute inset-0 bg-gradient-to-b from-bg-surface/30 to-bg-base pointer-events-none"></div>
+  <div class="orb w-[500px] h-[500px] bg-blue-500/4 bottom-0 right-1/4 pointer-events-none"></div>
+
+  <div class="relative z-10 max-w-6xl mx-auto px-6">
+
+    <!-- Heading -->
+    <div class="text-center mb-16 reveal">
+      <span class="section-eyebrow mb-4">Use Cases</span>
+      <h2 class="mt-4 text-4xl sm:text-5xl font-black tracking-tight text-gradient-subtle">
+        Built for Real-World<br/>
+        <span class="text-gradient">Bitcoin Settlement</span>
+      </h2>
+      <p class="mt-5 text-lg text-text-secondary max-w-xl mx-auto">
+        From OTC desks to merchant payments, ArcMint provides the privacy layer that professional Bitcoin operations need.
+      </p>
+    </div>
+
+    <!-- Cards -->
+    <div class="grid md:grid-cols-3 gap-6">
+      {cases.map((c, i) => (
+        <div class={`reveal reveal-delay-${i + 1} card-glow rounded-2xl p-6 flex flex-col gap-5`}>
+          <!-- Illustration -->
+          <div class="flex items-center justify-between">
+            <div class="w-14 h-14">
+              <Fragment set:html={c.icon} />
+            </div>
+            <span class={`badge text-xs ${tagColors[c.tagColor]}`}>{c.tag}</span>
+          </div>
+
+          <!-- Title -->
+          <h3 class="text-base font-bold text-text-primary">{c.title}</h3>
+
+          <!-- Description -->
+          <p class="text-sm text-text-secondary leading-relaxed flex-1">{c.description}</p>
+
+          <!-- Detail -->
+          <p class="text-xs text-text-dim leading-relaxed italic border-l-2 border-orange/30 pl-3">{c.detail}</p>
+
+          <!-- Metric -->
+          <div class="flex items-baseline gap-2 pt-3 border-t border-bg-border">
+            <span class="text-xl font-black text-gradient">{c.metric}</span>
+            <span class="text-xs text-text-dim">{c.metricLabel}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+
+  </div>
+</section>
